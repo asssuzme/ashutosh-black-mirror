@@ -639,7 +639,7 @@ async function runLearningJob() {
 
     await initialize();
 
-    // Start health check server for Railway
+    // Start health check server
     const PORT = process.env.PORT || 3000;
     const healthServer = http.createServer((req, res) => {
       if (req.url === '/health' || req.url === '/') {
@@ -656,8 +656,21 @@ async function runLearningJob() {
       }
     });
 
-    healthServer.listen(PORT, () => {
-      console.log(`🏥 Health check server running on port ${PORT}`);
+    healthServer.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`⚠️ Port ${PORT} is in use, trying alternative port...`);
+        const altPort = PORT + Math.floor(Math.random() * 1000);
+        healthServer.listen(altPort, 'localhost', () => {
+          console.log(`🏥 Health check server running on localhost:${altPort}`);
+          console.log('💚 Bot is healthy and ready');
+        });
+      } else {
+        console.error('Health server error:', err);
+      }
+    });
+
+    healthServer.listen(PORT, 'localhost', () => {
+      console.log(`🏥 Health check server running on localhost:${PORT}`);
       console.log('💚 Bot is healthy and ready');
     });
   } catch (error) {
