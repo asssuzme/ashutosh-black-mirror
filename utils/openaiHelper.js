@@ -11,12 +11,22 @@ const OpenAI = require('openai');
 const fs = require('fs').promises;
 const path = require('path');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
-
 const MODEL = 'gpt-4-turbo-preview';
 const FAST_MODEL = 'gpt-3.5-turbo';
+
+// Lazy-load OpenAI client to allow env var validation first
+let openai = null;
+function getOpenAI() {
+  if (!openai) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY environment variable is not set');
+    }
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+  }
+  return openai;
+}
 
 /**
  * Load learning context from memory
@@ -84,7 +94,7 @@ Return ONLY a JSON array of task objects with this structure:
 ]`;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: FAST_MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
@@ -134,7 +144,7 @@ Provide analysis as JSON:
 }`;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: FAST_MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.5,
@@ -181,7 +191,7 @@ Create a brief, data-driven summary highlighting:
 Keep it sharp, factual, and under 200 words. Use bullet points.`;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.6,
@@ -216,7 +226,7 @@ Create a structured review with:
 Format professionally. Include specific numbers and examples.`;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.5,
@@ -262,7 +272,7 @@ Analyze patterns and provide insights as JSON:
 }`;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.4,
@@ -310,7 +320,7 @@ Intern context:
 Respond appropriately. Keep it brief (2-3 sentences max). Be human-like but professional.`;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: FAST_MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
