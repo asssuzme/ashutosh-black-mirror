@@ -1,0 +1,57 @@
+{
+  "tone": "professional",
+  "rules": [
+    "Daily login required by 10 AM IST",
+    "Minimum 2 progress updates per day",
+    "All tasks must be completed by 6 PM IST",
+    "Weekly review every Sunday",
+    "Missed attendance requires explanation"
+  ],
+  "taskGuidelines": {
+    "sales": {
+      "minTasksPerDay": 3,
+      "maxTasksPerDay": 5,
+      "focusAreas": [
+        "Cold calling",
+        "Lead qualification",
+        "CRM updates",
+        "Follow-ups",
+        "Pipeline management"
+      ]
+    },
+    "outreach": {
+      "minTasksPerDay": 3,
+      "maxTasksPerDay": 5,
+      "focusAreas": [
+        "Email campaigns",
+        "Social media engagement",
+        "Content distribution",
+        "Partnership outreach",
+        "Community building"
+      ]
+    },
+    "shitposters": {
+      "minTasksPerDay": 3,
+      "maxTasksPerDay": 5,
+      "focusAreas": [
+        "Viral content creation",
+        "Meme generation",
+        "Community engagement",
+        "Trend analysis",
+        "Platform experimentation"
+      ]
+    }
+  },
+  "automationSchedule": {
+    "dailyTasks": "0 9 * * *",
+    "loginCheck": "0 10 * * *",
+    "progressPing": "0 13 * * *",
+    "endOfDayCollection": "0 18 * * *",
+    "dailySummary": "30 18 * * *",
+    "weeklyReview": "0 19 * * 0",
+    "fridayLeaderboard": "0 18 * * 5",
+    "nightlyLearning": "0 22 * * *"
+  },
+  "customDirectives": [],
+  "lastUpdated": "2025-01-01T00:00:00.000Z"
+}

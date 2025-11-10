@@ -1,0 +1,80 @@
+{
+  "sales": [
+    {
+      "title": "Complete 20 cold calls",
+      "description": "Reach out to leads from the new prospect list. Focus on understanding their pain points and qualifying them for our solution.",
+      "priority": "high",
+      "estimatedTime": "120"
+    },
+    {
+      "title": "Update CRM with call notes",
+      "description": "Log all interactions from today's calls in the CRM. Include key insights, next steps, and follow-up dates.",
+      "priority": "medium",
+      "estimatedTime": "30"
+    },
+    {
+      "title": "Send follow-up emails to 10 warm leads",
+      "description": "Personalized follow-up emails to leads who showed interest. Include case studies and value propositions.",
+      "priority": "high",
+      "estimatedTime": "60"
+    },
+    {
+      "title": "Review and update sales pipeline",
+      "description": "Check all deals in progress, update stages, and identify deals that need attention or are at risk.",
+      "priority": "medium",
+      "estimatedTime": "45"
+    }
+  ],
+  "outreach": [
+    {
+      "title": "Send 50 personalized outreach emails",
+      "description": "Target new prospects from the outreach list. Customize each email based on their industry and role.",
+      "priority": "high",
+      "estimatedTime": "90"
+    },
+    {
+      "title": "Engage with 30 posts on LinkedIn",
+      "description": "Comment meaningfully on target audience posts. Build relationships and establish thought leadership.",
+      "priority": "medium",
+      "estimatedTime": "45"
+    },
+    {
+      "title": "Create content for social media",
+      "description": "Draft 3 posts for this week highlighting our value proposition, success stories, or industry insights.",
+      "priority": "medium",
+      "estimatedTime": "60"
+    },
+    {
+      "title": "Research 20 new partnership opportunities",
+      "description": "Identify potential partners in adjacent markets. Create initial outreach list with contact information.",
+      "priority": "low",
+      "estimatedTime": "75"
+    }
+  ],
+  "shitposters": [
+    {
+      "title": "Create 5 viral memes for brand",
+      "description": "Generate memes that align with current trends and our brand voice. Focus on relatability and shareability.",
+      "priority": "high",
+      "estimatedTime": "90"
+    },
+    {
+      "title": "Engage in 10 trending Twitter threads",
+      "description": "Jump into trending conversations with witty, brand-relevant responses. Aim for visibility and engagement.",
+      "priority": "high",
+      "estimatedTime": "60"
+    },
+    {
+      "title": "Analyze competitor social content",
+      "description": "Review what's working for competitors. Document successful formats, topics, and engagement patterns.",
+      "priority": "medium",
+      "estimatedTime": "45"
+    },
+    {
+      "title": "Test new content format",
+      "description": "Experiment with a new content type (Reels, TikTok, Stories). Create and post 2-3 pieces.",
+      "priority": "low",
+      "estimatedTime": "120"
+    }
+  ]
+}

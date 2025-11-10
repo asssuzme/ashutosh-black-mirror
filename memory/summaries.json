@@ -1,0 +1,35 @@
+{
+  "dailySummaries": [],
+  "weeklySummaries": [],
+  "learningInsights": {
+    "patterns": {
+      "bestTaskTypes": [],
+      "optimalTaskCount": 4,
+      "commonFailurePoints": []
+    },
+    "lastLearningRun": null,
+    "improvementSuggestions": []
+  },
+  "performanceMetrics": {
+    "overall": {
+      "averageAttendance": 0,
+      "averageTaskCompletion": 0,
+      "averageQuality": 0
+    },
+    "byRole": {
+      "sales": {
+        "count": 0,
+        "avgCompletion": 0
+      },
+      "outreach": {
+        "count": 0,
+        "avgCompletion": 0
+      },
+      "shitposters": {
+        "count": 0,
+        "avgCompletion": 0
+      }
+    }
+  },
+  "lastUpdated": "2025-01-01T00:00:00.000Z"
+}

@@ -1,0 +1,32 @@
+{
+  "name": "ai-boss-2.0",
+  "version": "2.0.0",
+  "description": "Self-learning Slack AI Boss that manages interns across multiple teams with context awareness and continuous learning",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": [
+    "slack",
+    "bot",
+    "ai",
+    "manager",
+    "self-learning"
+  ],
+  "author": "Ashutosh",
+  "license": "MIT",
+  "dependencies": {
+    "@slack/bolt": "^3.17.1",
+    "node-cron": "^3.0.3",
+    "openai": "^4.24.1",
+    "dotenv": "^16.3.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
