@@ -21,12 +21,19 @@ const BOT_COMMANDS = [
 const BOT_KEYWORDS = [
   'aiboss',
   'ai boss',
-  'bot',
-  'submit',
-  'update',
-  'complete',
-  'task',
-  'attendance'
+  'my tasks',
+  'my task',
+  'what are my',
+  'show me my',
+  'login',
+  'logged in',
+  'here',
+  'present',
+  'attendance',
+  'progress',
+  'completed',
+  'finished',
+  'done with'
 ];
 
 /**
@@ -39,34 +46,39 @@ function classifyIntent(message, botUserId) {
   const { user, text, channel_type, channel } = message;
   const lowerText = (text || '').toLowerCase();
 
-  // 1. Admin directive - any message from admin in DM or control channel
-  if (user === ADMIN_USER_ID) {
-    if (channel_type === 'im') {
-      return 'ADMIN_DIRECTIVE';
-    }
-    // Admin talking in team channels is just supervision, not a directive
-    return 'ADMIN_MESSAGE';
-  }
-
-  // 2. Direct message to bot (DMs)
-  if (channel_type === 'im') {
-    return 'INTERN_TO_BOT';
-  }
-
-  // 3. Bot mention - directly mentioned in message
+  // 1. Bot mention - directly mentioned in message (highest priority)
   if (text && text.includes(`<@${botUserId}>`)) {
     return 'INTERN_TO_BOT';
   }
 
-  // 4. Bot command - starts with a slash command
+  // 2. Bot command - starts with a slash command (works for everyone including admin)
   const startsWithCommand = BOT_COMMANDS.some(cmd => lowerText.startsWith(cmd));
   if (startsWithCommand) {
     return 'INTERN_TO_BOT';
   }
 
-  // 5. Bot keyword - contains bot-related keywords
+  // 3. Bot keyword - contains bot-related keywords (works for everyone including admin)
   const containsBotKeyword = BOT_KEYWORDS.some(keyword => lowerText.includes(keyword));
   if (containsBotKeyword) {
+    return 'INTERN_TO_BOT';
+  }
+
+  // 4. Admin-specific handling (after bot commands are checked)
+  if (user === ADMIN_USER_ID) {
+    if (channel_type === 'im') {
+      // Check if it's an admin directive or just using the bot
+      if (isAdminDirective(lowerText)) {
+        return 'ADMIN_DIRECTIVE';
+      }
+      // Admin using bot as regular user
+      return 'INTERN_TO_BOT';
+    }
+    // Admin talking in team channels is just supervision, not a directive
+    return 'ADMIN_MESSAGE';
+  }
+
+  // 5. Direct message to bot (DMs from non-admin)
+  if (channel_type === 'im') {
     return 'INTERN_TO_BOT';
   }
 
@@ -82,6 +94,29 @@ function classifyIntent(message, botUserId) {
 
   // 8. Default - general team chat
   return 'GENERAL_CHAT';
+}
+
+/**
+ * Check if message from admin is a directive
+ * @param {string} lowerText - Lowercase message text
+ * @returns {boolean}
+ */
+function isAdminDirective(lowerText) {
+  const directivePatterns = [
+    'add intern',
+    'remove intern',
+    'delete intern',
+    'update tone',
+    'change tone',
+    'upload data',
+    'add context',
+    'remember',
+    'stats',
+    'report',
+    'summary'
+  ];
+
+  return directivePatterns.some(pattern => lowerText.includes(pattern));
 }
 
 /**
