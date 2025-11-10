@@ -52,6 +52,27 @@
     "fridayLeaderboard": "0 18 * * 5",
     "nightlyLearning": "0 22 * * *"
   },
-  "customDirectives": [],
-  "lastUpdated": "2025-01-01T00:00:00.000Z"
+  "customDirectives": [
+    {
+      "text": "hey",
+      "addedAt": "2025-11-10T22:08:55.667Z"
+    },
+    {
+      "text": "who am i",
+      "addedAt": "2025-11-10T22:09:06.267Z"
+    },
+    {
+      "text": "```/login```\n",
+      "addedAt": "2025-11-10T22:11:22.572Z"
+    },
+    {
+      "text": "/ login",
+      "addedAt": "2025-11-10T22:11:50.688Z"
+    },
+    {
+      "text": "what are my tasks",
+      "addedAt": "2025-11-10T22:12:04.081Z"
+    }
+  ],
+  "lastUpdated": "2025-11-10T22:12:04.081Z"
 }
