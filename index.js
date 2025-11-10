@@ -6,12 +6,22 @@
 require('dotenv').config();
 const { App } = require('@slack/bolt');
 const cron = require('node-cron');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
 // Utilities
 const contextClassifier = require('./utils/contextClassifier');
 const openaiHelper = require('./utils/openaiHelper');
 const slackHelper = require('./utils/slackHelper');
 const memory = require('./utils/memoryManager');
+
+// Ensure memory directory exists
+const memoryDir = path.join(__dirname, 'memory');
+if (!fs.existsSync(memoryDir)) {
+  console.log('Creating memory directory...');
+  fs.mkdirSync(memoryDir, { recursive: true });
+}
 
 // Environment variables
 const {
@@ -603,12 +613,64 @@ async function runLearningJob() {
  */
 (async () => {
   try {
+    // Validate required environment variables
+    const required = [
+      'SLACK_BOT_TOKEN',
+      'SLACK_SIGNING_SECRET',
+      'SLACK_APP_TOKEN',
+      'ADMIN_USER_ID',
+      'OPENAI_API_KEY'
+    ];
+
+    const missing = required.filter(key => !process.env[key]);
+    if (missing.length > 0) {
+      console.error('❌ Missing required environment variables:', missing.join(', '));
+      console.error('Please set these in your Railway environment variables.');
+      process.exit(1);
+    }
+
+    console.log('🚀 Starting AI Boss 2.0...');
+    console.log('Environment:', process.env.ENVIRONMENT || 'production');
+    console.log('Socket Mode:', process.env.SLACK_APP_TOKEN ? 'Enabled' : 'Disabled');
+
     await app.start();
     console.log('⚡️ AI Boss 2.0 is running!');
+    console.log('✅ Socket connection established');
 
     await initialize();
+
+    // Start health check server for Railway
+    const PORT = process.env.PORT || 3000;
+    const healthServer = http.createServer((req, res) => {
+      if (req.url === '/health' || req.url === '/') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: 'healthy',
+          bot: 'AI Boss 2.0',
+          uptime: process.uptime(),
+          timestamp: new Date().toISOString()
+        }));
+      } else {
+        res.writeHead(404);
+        res.end('Not Found');
+      }
+    });
+
+    healthServer.listen(PORT, () => {
+      console.log(`🏥 Health check server running on port ${PORT}`);
+      console.log('💚 Bot is healthy and ready');
+    });
   } catch (error) {
-    console.error('Error starting bot:', error);
+    console.error('❌ Error starting bot:', error);
+    console.error('Stack trace:', error.stack);
+
+    if (error.message.includes('token')) {
+      console.error('Check your Slack tokens in Railway environment variables');
+    }
+    if (error.message.includes('network') || error.message.includes('ECONNREFUSED')) {
+      console.error('Network connectivity issue. Check Railway network settings.');
+    }
+
     process.exit(1);
   }
 })();
