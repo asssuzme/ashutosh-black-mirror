@@ -112,3 +112,9 @@ temp/
 
 # Memory backups (keep originals)
 memory/*.backup
+
+# Replit specific
+.replit
+.config/
+.upm/
+.local/
