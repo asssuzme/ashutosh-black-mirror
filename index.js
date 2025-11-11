@@ -209,11 +209,21 @@ app.message(async ({ message, say, client }) => {
 
     // Log admin DM specifically
     if (isAdminDM) {
-      console.log('💬 This is an ADMIN DM - guaranteed response');
+      console.log('💬 This is an ADMIN DM - DIRECT HANDLING (NO AI)');
+      // Handle admin DMs directly - NO AI DECISION MAKING
+      await handleAdminDirectMessage(message, say);
+      return;
     }
 
-    // Build context for AI decision
-    console.log('🧠 Building context for AI decision...');
+    // Admin messages in channels - also handle directly
+    if (isAdmin && isMonitoredChannel) {
+      console.log('👨‍💼 Admin message in channel - direct handling');
+      await handleAdminChannelMessage(message, say);
+      return;
+    }
+
+    // Regular intern messages - use AI decision engine
+    console.log('🧠 Building context for AI decision (intern message)...');
 
     const [sender, intern, channelInfo, recentMessages, allInterns, rules] = await Promise.all([
       slackHelper.getUserInfo(app, message.user),
@@ -223,8 +233,6 @@ app.message(async ({ message, say, client }) => {
       memory.getActiveInterns(),
       memory.getRules()
     ]);
-
-    // isAdmin already defined above - don't redefine
 
     // Send to AI for decision
     const decision = await aiDecisionEngine.analyzeMessage({
@@ -238,24 +246,15 @@ app.message(async ({ message, say, client }) => {
       recentMessages,
       allInterns,
       rules,
-      isAdmin
+      isAdmin: false // This is an intern message
     });
 
     console.log('🤖 AI Decision:', decision);
-
-    // SAFETY: Force response to admin DMs even if AI says no
-    if (isAdminDM && (!decision.shouldRespond || !decision.response)) {
-      console.log('⚠️ AI decided not to respond to admin DM - overriding!');
-      decision.shouldRespond = true;
-      decision.response = "I'm here! How can I help you?";
-    }
 
     // Execute decision
     if (decision.shouldRespond && decision.response) {
       console.log('📤 Sending response:', decision.response);
       await say(decision.response);
-    } else {
-      console.log('🔇 Not responding (shouldRespond:', decision.shouldRespond, ', has response:', !!decision.response, ')');
     }
 
     // Execute action if needed
@@ -271,6 +270,104 @@ app.message(async ({ message, say, client }) => {
     console.error('Stack:', error.stack);
   }
 });
+
+/**
+ * Handle admin DM - DIRECT, NO AI
+ * Admin is your boss, execute commands immediately
+ */
+async function handleAdminDirectMessage(message, say) {
+  const text = message.text.toLowerCase();
+
+  console.log('🎯 Admin DM received:', message.text);
+
+  try {
+    // Pattern: "tell/message/inform X to Y"
+    const tellMatch = message.text.match(/(?:tell|message|inform|notify|ask|remind|ping)\s+(\S+)\s+(?:to\s+)?(.+)/i);
+
+    if (tellMatch) {
+      const targetName = tellMatch[1];
+      const messageToSend = tellMatch[2].trim();
+
+      console.log(`📢 Admin directive: Tell "${targetName}" to "${messageToSend}"`);
+
+      // Find the intern
+      const interns = await memory.getActiveInterns();
+      const intern = interns.find(i =>
+        i.name.toLowerCase().includes(targetName.toLowerCase()) ||
+        targetName.toLowerCase().includes(i.name.toLowerCase())
+      );
+
+      if (!intern) {
+        await say(`❌ Could not find intern "${targetName}". Available: ${interns.map(i => i.name).join(', ')}`);
+        return;
+      }
+
+      // Send message to intern's channel IMMEDIATELY
+      await app.client.chat.postMessage({
+        channel: intern.channelId,
+        text: `📢 *Message from the boss:*\n\n${messageToSend}`
+      });
+
+      await say(`✅ Messaged ${intern.name} in their channel.`);
+      console.log(`✅ Executed: Sent message to ${intern.name}`);
+      return;
+    }
+
+    // Pattern: "status" or "what's the status"
+    if (text.includes('status') || text.includes('summary')) {
+      const interns = await memory.getActiveInterns();
+      const today = new Date().toISOString().split('T')[0];
+
+      let statusMsg = '📊 *Team Status:*\n\n';
+      for (const intern of interns) {
+        const loggedIn = intern.attendance[today]?.loggedIn ? '✅' : '❌';
+        const tasksCompleted = (intern.completedTasks || []).filter(t => {
+          const completedDate = new Date(t.completedAt).toISOString().split('T')[0];
+          return completedDate === today;
+        }).length;
+        const totalTasks = intern.currentTasks?.length || 0;
+
+        statusMsg += `${loggedIn} *${intern.name}* (${intern.role})\n`;
+        statusMsg += `   └ Tasks: ${tasksCompleted}/${totalTasks} completed\n\n`;
+      }
+
+      await say(statusMsg);
+      return;
+    }
+
+    // Pattern: "assign tasks"
+    if (text.includes('assign task')) {
+      const interns = await memory.getActiveInterns();
+      for (const intern of interns) {
+        if (intern.currentTasks.length === 0) {
+          const tasks = await openaiHelper.generateTasks(intern.role, intern);
+          await memory.assignTasks(intern.slackId, tasks);
+        }
+      }
+      await say(`✅ Assigned tasks to all interns without tasks.`);
+      return;
+    }
+
+    // Default: Just acknowledge
+    await say(`Got it! I'm here and ready to help. What do you need?`);
+
+  } catch (error) {
+    console.error('Error handling admin DM:', error);
+    await say(`❌ Error: ${error.message}`);
+  }
+}
+
+/**
+ * Handle admin message in channel - DIRECT, NO AI
+ */
+async function handleAdminChannelMessage(message, say) {
+  console.log('👨‍💼 Admin message in channel - logging for context');
+  // Admin messages in channels are just logged, not responded to
+  // Unless they explicitly mention the bot
+  if (message.text.includes(`<@${BOT_USER_ID}>`)) {
+    await say(`Yes boss, what do you need?`);
+  }
+}
 
 /**
  * Get channel information
@@ -363,7 +460,7 @@ async function executeAction(action, message, say, intern) {
 
       case 'assign_tasks':
         if (intern && intern.currentTasks.length === 0) {
-          const tasks = await openaiHelper.generateDailyTasks(intern.role, 'medium');
+          const tasks = await openaiHelper.generateTasks(intern.role, intern);
           await memory.assignTasks(message.user, tasks);
           console.log(`✅ Assigned ${tasks.length} tasks to ${intern.name}`);
         }
