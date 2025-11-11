@@ -55,7 +55,81 @@
         "attendanceRate": 0,
         "lastActive": null
       }
+    },
+    {
+      "id": "U09SJ5X3V5X",
+      "name": "Ashutosh Lath",
+      "role": "sales",
+      "slackId": "U09SJ5X3V5X",
+      "channelId": "D09SZHQFZCY",
+      "joinDate": "2025-11-11T08:49:56.189Z",
+      "active": true,
+      "attendance": {},
+      "currentTasks": [],
+      "completedTasks": [
+        {
+          "title": "Cold Calling",
+          "description": "Make 30 cold calls to potential leads from the provided list. Focus on introducing the company and its services to generate interest.",
+          "priority": "high",
+          "estimatedTime": "60",
+          "assignedAt": "2025-11-11T08:50:00.003Z",
+          "completed": true,
+          "completedAt": "2025-11-11T08:50:12.425Z"
+        },
+        {
+          "title": "Lead Qualification",
+          "description": "Qualify at least 10 leads based on predefined criteria. Gather necessary information such as budget, timeline, and decision-making process.",
+          "priority": "medium",
+          "estimatedTime": "45",
+          "assignedAt": "2025-11-11T08:50:00.003Z",
+          "completed": true,
+          "completedAt": "2025-11-11T08:50:12.425Z"
+        },
+        {
+          "title": "CRM Updates",
+          "description": "Update CRM system with the details of all interactions made today. Include notes on conversations, follow-up actions, and any new information obtained.",
+          "priority": "medium",
+          "estimatedTime": "30",
+          "assignedAt": "2025-11-11T08:50:00.003Z",
+          "completed": true,
+          "completedAt": "2025-11-11T08:50:12.425Z"
+        },
+        {
+          "title": "Follow-ups",
+          "description": "Follow up with leads from previous interactions. Send personalized emails to at least 5 leads to nurture relationships and move them through the sales funnel.",
+          "priority": "high",
+          "estimatedTime": "40",
+          "assignedAt": "2025-11-11T08:50:00.003Z",
+          "completed": true,
+          "completedAt": "2025-11-11T08:50:12.425Z"
+        },
+        {
+          "title": "Pipeline Management",
+          "description": "Review and update the sales pipeline. Ensure all leads are in the correct stage, and prioritize actions based on their readiness to progress.",
+          "priority": "low",
+          "estimatedTime": "25",
+          "assignedAt": "2025-11-11T08:50:00.003Z",
+          "completed": true,
+          "completedAt": "2025-11-11T08:50:12.425Z"
+        }
+      ],
+      "progressUpdates": {},
+      "completionRate": 100,
+      "profile": {
+        "strengths": [],
+        "weaknesses": [],
+        "optimalWorkload": "medium",
+        "motivationStyle": "encouraging",
+        "performanceHistory": []
+      },
+      "stats": {
+        "totalTasksAssigned": 5,
+        "totalTasksCompleted": 5,
+        "averageQualityScore": 0,
+        "attendanceRate": 0,
+        "lastActive": null
+      }
     }
   ],
-  "lastUpdated": "2025-11-11T08:40:12.642Z"
+  "lastUpdated": "2025-11-11T08:50:12.425Z"
 }
