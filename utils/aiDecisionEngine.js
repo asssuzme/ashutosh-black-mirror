@@ -39,7 +39,10 @@ async function analyzeMessage(params) {
 
   try {
     // Admin DMs should ALWAYS get a response
-    if (isAdmin && message.channel_type === 'im') {
+    // Check multiple ways: channel_type or channel ID starts with 'D'
+    const isDM = message.channel_type === 'im' || message.channel.startsWith('D');
+
+    if (isAdmin && isDM) {
       console.log('👨‍💼 Admin DM - forcing response');
 
       const prompt = buildAnalysisPrompt(params);
@@ -83,6 +86,11 @@ IMPORTANT: If admin says things like "tell X to do Y", "message X about Y", "inf
 
       console.log('🧠 AI Decision (Admin DM):', decision);
       return decision;
+    }
+
+    // Even if not a DM, admin messages should get high priority
+    if (isAdmin) {
+      console.log('👨‍💼 Admin message in channel - will prioritize response');
     }
 
     const prompt = buildAnalysisPrompt(params);

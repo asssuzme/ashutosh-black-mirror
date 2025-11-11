@@ -132,28 +132,39 @@ app.message(async ({ message, say, client }) => {
       process.env.SHITPOSTERS_CHANNEL_ID
     ].filter(Boolean);
 
-    // Check if this is a monitored channel or admin DM
+    // Check if this is a monitored channel or admin message
     const isMonitoredChannel = monitoredChannels.includes(message.channel);
-    const isAdminDM = message.channel_type === 'im' && message.user === ADMIN_USER_ID;
+
+    // Multiple ways to detect DM (Slack API can be inconsistent)
+    const isDM = message.channel_type === 'im' || message.channel.startsWith('D');
+    const isAdmin = message.user === ADMIN_USER_ID;
+    const isAdminDM = isDM && isAdmin;
 
     console.log('🔍 Channel check:', {
       channel: message.channel,
       channel_type: message.channel_type,
       user: message.user,
       ADMIN_USER_ID,
+      isDM,
+      isAdmin,
       isMonitoredChannel,
       isAdminDM
     });
 
-    // Only process messages from monitored channels or admin DMs
-    if (!isMonitoredChannel && !isAdminDM) {
-      console.log('📭 Message from non-monitored channel, ignoring');
+    // CRITICAL: Always process admin messages (DM or channel)
+    if (isAdmin) {
+      console.log('👨‍💼 ⚠️ ADMIN MESSAGE DETECTED - Will process and respond');
+    }
+
+    // Only process messages from monitored channels or from admin
+    if (!isMonitoredChannel && !isAdmin) {
+      console.log('📭 Message from non-monitored channel and not from admin, ignoring');
       return;
     }
 
-    // Admin DMs should always get a response
+    // Log admin DM specifically
     if (isAdminDM) {
-      console.log('👨‍💼 Admin DM detected - will respond');
+      console.log('💬 This is an ADMIN DM - guaranteed response');
     }
 
     // Build context for AI decision
@@ -168,7 +179,7 @@ app.message(async ({ message, say, client }) => {
       memory.getRules()
     ]);
 
-    const isAdmin = message.user === ADMIN_USER_ID;
+    // isAdmin already defined above - don't redefine
 
     // Send to AI for decision
     const decision = await aiDecisionEngine.analyzeMessage({
@@ -187,9 +198,19 @@ app.message(async ({ message, say, client }) => {
 
     console.log('🤖 AI Decision:', decision);
 
+    // SAFETY: Force response to admin DMs even if AI says no
+    if (isAdminDM && (!decision.shouldRespond || !decision.response)) {
+      console.log('⚠️ AI decided not to respond to admin DM - overriding!');
+      decision.shouldRespond = true;
+      decision.response = "I'm here! How can I help you?";
+    }
+
     // Execute decision
     if (decision.shouldRespond && decision.response) {
+      console.log('📤 Sending response:', decision.response);
       await say(decision.response);
+    } else {
+      console.log('🔇 Not responding (shouldRespond:', decision.shouldRespond, ', has response:', !!decision.response, ')');
     }
 
     // Execute action if needed
