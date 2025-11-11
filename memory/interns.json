@@ -37,7 +37,48 @@
       "joinDate": "2025-11-11T08:40:12.642Z",
       "active": true,
       "attendance": {},
-      "currentTasks": [],
+      "currentTasks": [
+        {
+          "title": "Cold Calling",
+          "description": "Make at least 30 cold calls to potential leads from the provided list. Focus on introducing the company and scheduling follow-up meetings.",
+          "priority": "high",
+          "estimatedTime": "120",
+          "assignedAt": "2025-11-11T09:13:26.760Z",
+          "completed": false
+        },
+        {
+          "title": "Lead Qualification",
+          "description": "Qualify 15 leads by asking relevant questions to determine their level of interest and fit for the company's products/services.",
+          "priority": "medium",
+          "estimatedTime": "60",
+          "assignedAt": "2025-11-11T09:13:26.760Z",
+          "completed": false
+        },
+        {
+          "title": "CRM Updates",
+          "description": "Update CRM system with all interactions from today's calls. Include notes on lead status, next steps, and any important details for follow-up.",
+          "priority": "medium",
+          "estimatedTime": "30",
+          "assignedAt": "2025-11-11T09:13:26.760Z",
+          "completed": false
+        },
+        {
+          "title": "Follow-Up Emails",
+          "description": "Send follow-up emails to all leads contacted today. Include a summary of the conversation, next steps, and a call to action for scheduling a meeting.",
+          "priority": "high",
+          "estimatedTime": "45",
+          "assignedAt": "2025-11-11T09:13:26.760Z",
+          "completed": false
+        },
+        {
+          "title": "Pipeline Management",
+          "description": "Review and update the sales pipeline with the latest status of each lead. Identify any potential roadblocks or opportunities for advancement.",
+          "priority": "low",
+          "estimatedTime": "30",
+          "assignedAt": "2025-11-11T09:13:26.760Z",
+          "completed": false
+        }
+      ],
       "completedTasks": [],
       "progressUpdates": {},
       "completionRate": 0,
@@ -49,7 +90,7 @@
         "performanceHistory": []
       },
       "stats": {
-        "totalTasksAssigned": 0,
+        "totalTasksAssigned": 5,
         "totalTasksCompleted": 0,
         "averageQualityScore": 0,
         "attendanceRate": 0,
@@ -169,5 +210,5 @@
       }
     }
   ],
-  "lastUpdated": "2025-11-11T09:09:05.135Z"
+  "lastUpdated": "2025-11-11T09:13:26.761Z"
 }
