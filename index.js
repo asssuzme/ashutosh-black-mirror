@@ -136,10 +136,24 @@ app.message(async ({ message, say, client }) => {
     const isMonitoredChannel = monitoredChannels.includes(message.channel);
     const isAdminDM = message.channel_type === 'im' && message.user === ADMIN_USER_ID;
 
+    console.log('🔍 Channel check:', {
+      channel: message.channel,
+      channel_type: message.channel_type,
+      user: message.user,
+      ADMIN_USER_ID,
+      isMonitoredChannel,
+      isAdminDM
+    });
+
     // Only process messages from monitored channels or admin DMs
     if (!isMonitoredChannel && !isAdminDM) {
       console.log('📭 Message from non-monitored channel, ignoring');
       return;
+    }
+
+    // Admin DMs should always get a response
+    if (isAdminDM) {
+      console.log('👨‍💼 Admin DM detected - will respond');
     }
 
     // Build context for AI decision
@@ -285,11 +299,57 @@ async function executeAction(action, message, say, intern) {
         console.log('📢 Notification sent to admin');
         break;
 
+      case 'send_to_channel':
+        // Admin wants to send a message to a specific channel
+        // Parse the admin's directive
+        const directive = contextClassifier.parseAdminDirective(message.text);
+        if (directive && directive.action === 'AGENTIC_MESSAGE') {
+          await handleAgenticMessage(directive, say);
+        }
+        break;
+
       default:
         console.log(`⚠️ Unknown action: ${action}`);
     }
   } catch (error) {
     console.error('Error executing action:', error);
+  }
+}
+
+/**
+ * Handle agentic messages (admin telling bot to message someone)
+ */
+async function handleAgenticMessage(directive, say) {
+  const interns = await memory.getActiveInterns();
+  const intern = interns.find(i =>
+    i.name.toLowerCase().includes(directive.targetName.toLowerCase()) ||
+    directive.targetName.toLowerCase().includes(i.name.toLowerCase())
+  );
+
+  if (!intern) {
+    await say(`❌ Could not find intern "${directive.targetName}". Available interns: ${interns.map(i => i.name).join(', ')}`);
+    return;
+  }
+
+  try {
+    // Send message to intern in their assigned channel
+    await app.client.chat.postMessage({
+      channel: intern.channelId,
+      text: `📢 *Message from the boss:*\n${directive.message}`,
+      blocks: [{
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `📢 *Message from the boss:*\n\n${directive.message}`
+        }
+      }]
+    });
+
+    await say(`✅ Message sent to ${intern.name} in their channel.`);
+    console.log(`🎯 Agentic message sent to ${intern.name}: ${directive.message}`);
+  } catch (error) {
+    console.error('Error sending agentic message:', error);
+    await say(`❌ Failed to send message to ${intern.name}. Error: ${error.message}`);
   }
 }
 

@@ -38,6 +38,53 @@ async function analyzeMessage(params) {
   } = params;
 
   try {
+    // Admin DMs should ALWAYS get a response
+    if (isAdmin && message.channel_type === 'im') {
+      console.log('👨‍💼 Admin DM - forcing response');
+
+      const prompt = buildAnalysisPrompt(params);
+      const completion = await getOpenAI().chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [
+          {
+            role: 'system',
+            content: `You are the AI Boss assistant in direct message with your admin/boss.
+CRITICAL: You MUST ALWAYS respond to admin messages in DMs. Never stay silent.
+
+Your admin is giving you instructions, asking questions, or managing the team.
+- Always acknowledge their messages
+- Execute their directives
+- Provide status updates
+- Be helpful and responsive
+- Use a professional but friendly tone
+
+Output your decision as JSON with this structure:
+{
+  "shouldRespond": true (ALWAYS true for admin DMs),
+  "responseType": "admin_directive"|"status_update"|"acknowledgment",
+  "reasoning": "why you're responding this way",
+  "response": "your actual response message",
+  "action": "send_to_channel"|"assign_tasks"|null
+}
+
+IMPORTANT: If admin says things like "tell X to do Y", "message X about Y", "inform X that Y", "remind X to Y" - set action to "send_to_channel"`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        response_format: { type: "json_object" }
+      });
+
+      const decision = JSON.parse(completion.choices[0].message.content);
+      decision.shouldRespond = true; // Force response for admin DMs
+
+      console.log('🧠 AI Decision (Admin DM):', decision);
+      return decision;
+    }
+
     const prompt = buildAnalysisPrompt(params);
 
     const completion = await getOpenAI().chat.completions.create({
