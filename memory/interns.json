@@ -64,7 +64,12 @@
       "channelId": "D09SZHQFZCY",
       "joinDate": "2025-11-11T08:49:56.189Z",
       "active": true,
-      "attendance": {},
+      "attendance": {
+        "2025-11-11": {
+          "loggedIn": true,
+          "timestamp": "2025-11-11T09:09:05.135Z"
+        }
+      },
       "currentTasks": [
         {
           "title": "Cold Call 20 leads",
@@ -159,10 +164,10 @@
         "totalTasksAssigned": 9,
         "totalTasksCompleted": 5,
         "averageQualityScore": 0,
-        "attendanceRate": 0,
-        "lastActive": null
+        "attendanceRate": 100,
+        "lastActive": "2025-11-11T09:09:05.135Z"
       }
     }
   ],
-  "lastUpdated": "2025-11-11T09:00:42.224Z"
+  "lastUpdated": "2025-11-11T09:09:05.135Z"
 }
