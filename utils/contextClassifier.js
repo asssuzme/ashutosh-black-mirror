@@ -99,9 +99,11 @@ function classifyIntent(message, botUserId) {
     return 'ADMIN_MESSAGE';
   }
 
-  // 6. Direct message to bot (DMs from non-admin)
+  // 6. Direct message to bot (DMs)
   if (channel_type === 'im') {
-    return 'INTERN_TO_BOT';
+    // Only admin can DM the bot
+    // Interns should use their assigned channels
+    return 'BLOCKED_DM';
   }
 
   // 7. Mentions admin - likely talking to the boss
@@ -135,7 +137,13 @@ function isAdminDirective(lowerText) {
     'remember',
     'stats',
     'report',
-    'summary'
+    'summary',
+    'tell',
+    'inform',
+    'notify',
+    'message',
+    'ask',
+    'remind'
   ];
 
   return directivePatterns.some(pattern => lowerText.includes(pattern));
@@ -256,6 +264,21 @@ function parseAdminDirective(text) {
       action: 'GET_STATS',
       raw: text
     };
+  }
+
+  // Agentic directives - tell/inform/notify/ask someone to do something
+  if (lowerText.includes('tell') || lowerText.includes('inform') || lowerText.includes('notify') ||
+      lowerText.includes('message') || lowerText.includes('ask') || lowerText.includes('remind')) {
+    // Pattern: "tell [name] to [action]"
+    const tellMatch = text.match(/(?:tell|inform|notify|message|ask|remind)\s+(\S+)\s+(?:to\s+)?(.+)/i);
+    if (tellMatch) {
+      return {
+        action: 'AGENTIC_MESSAGE',
+        targetName: tellMatch[1],
+        message: tellMatch[2].trim(),
+        raw: text
+      };
+    }
   }
 
   // General directive - store as context

@@ -129,6 +129,9 @@ app.message(async ({ message, say }) => {
     } else if (intent === 'INTERN_TO_BOT') {
       console.log('🤖 Handling intern command');
       await handleInternCommand(message, say);
+    } else if (intent === 'BLOCKED_DM') {
+      console.log('🚫 Blocked DM from non-admin');
+      await handleBlockedDM(message, say);
     } else if (intent === 'ADMIN_MESSAGE') {
       // Admin talking in channels - just log for context
       console.log('📝 Admin message in channel - logging for context');
@@ -170,6 +173,10 @@ async function handleAdminDirective(message, say) {
 
       case 'GET_STATS':
         await handleGetStats(say);
+        break;
+
+      case 'AGENTIC_MESSAGE':
+        await handleAgenticMessage(directive, say);
         break;
 
       case 'GENERAL_DIRECTIVE':
@@ -244,6 +251,69 @@ async function handleGetStats(say) {
   const blocks = slackHelper.formatDailySummaryBlocks(summary, stats);
 
   await say({ blocks });
+}
+
+/**
+ * Handle agentic message - tell someone to do something
+ */
+async function handleAgenticMessage(directive, say) {
+  const interns = await memory.getActiveInterns();
+  const intern = interns.find(i =>
+    i.name.toLowerCase().includes(directive.targetName.toLowerCase()) ||
+    directive.targetName.toLowerCase().includes(i.name.toLowerCase())
+  );
+
+  if (!intern) {
+    await say(`❌ Could not find intern "${directive.targetName}". Available interns: ${interns.map(i => i.name).join(', ')}`);
+    return;
+  }
+
+  try {
+    // Send message to intern in their assigned channel
+    await app.client.chat.postMessage({
+      channel: intern.channelId,
+      text: `📢 *Message from the boss:*\n${directive.message}`,
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `📢 *Message from the boss:*\n\n${directive.message}`
+          }
+        }
+      ]
+    });
+
+    await say(`✅ Message sent to ${intern.name} in their channel.`);
+    console.log(`🎯 Agentic message sent to ${intern.name}: ${directive.message}`);
+  } catch (error) {
+    console.error('Error sending agentic message:', error);
+    await say(`❌ Failed to send message to ${intern.name}. Error: ${error.message}`);
+  }
+}
+
+/**
+ * Handle blocked DM - interns should use their assigned channels
+ */
+async function handleBlockedDM(message, say) {
+  const intern = await memory.getIntern(message.user);
+
+  if (intern && intern.channelId) {
+    await say({
+      text: `🚫 Please use your assigned team channel instead of DMs.`,
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `🚫 *DMs are disabled for interns.*\n\nPlease use your assigned team channel: <#${intern.channelId}>\n\nAll work communication should happen in your team channel so I can track your progress properly.`
+          }
+        }
+      ]
+    });
+  } else {
+    await say('🚫 Direct messages are only available for admins. Please use your team channel to communicate with me.');
+  }
 }
 
 /**
