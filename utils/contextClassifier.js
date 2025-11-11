@@ -72,18 +72,13 @@ function classifyIntent(message, botUserId) {
     return 'INTERN_TO_BOT';
   }
 
-  // 4. Messages in monitored channels - respond to work-related messages
-  if (isMonitoredChannel && channel_type === 'channel') {
-    // Check if message seems work-related or directed at bot
-    const workKeywords = ['task', 'work', 'done', 'completed', 'progress', 'help',
-                          'clocking', 'login', 'logout', 'attendance', 'status',
-                          'update', 'report', 'assign', 'finish'];
-    const seemsWorkRelated = workKeywords.some(keyword => lowerText.includes(keyword));
-
-    if (seemsWorkRelated) {
-      return 'INTERN_TO_BOT';
-    }
-  }
+  // 4. Messages in monitored channels - REMOVED broad keyword matching
+  // The bot will only respond when explicitly invoked via:
+  // - Direct mention (@AIBoss)
+  // - Slash commands (/login, /tasks, etc.)
+  // - Bot keywords (my tasks, aiboss, etc.)
+  // This prevents the bot from jumping into every conversation mentioning work-related words
+  // Channel verification happens in handleInternCommand() to ensure intern is in their assigned channel
 
   // 5. Admin-specific handling (after bot commands are checked)
   if (user === ADMIN_USER_ID) {
