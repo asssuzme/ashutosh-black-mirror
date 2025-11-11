@@ -355,6 +355,116 @@ function generateLeaderboard(performers) {
   return leaderboard;
 }
 
+/**
+ * Generate evening validation message for an intern
+ * Personalized praise based on their performance
+ */
+async function generateValidationMessage(intern, completedToday, completionRate) {
+  try {
+    const completion = await getOpenAI().chat.completions.create({
+      model: FAST_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a supportive AI manager giving end-of-day validation to your team member.
+Write a SHORT (2-3 sentences) personalized message that:
+- Acknowledges their work today
+- Highlights specific achievements if completion rate is good
+- Encourages them for tomorrow
+- Uses a warm, motivating tone
+
+Be concise - this is a quick validation message, not a performance review.`
+        },
+        {
+          role: 'user',
+          content: `Intern: ${intern.name}
+Role: ${intern.role}
+Tasks completed today: ${completedToday}
+Completion rate: ${completionRate}%
+Total attendance rate: ${intern.stats?.attendanceRate || 0}%
+
+Write a quick validation message for them.`
+        }
+      ],
+      temperature: 0.8,
+      max_tokens: 150
+    });
+
+    return completion.choices[0].message.content.trim();
+  } catch (error) {
+    console.error('Error generating validation message:', error);
+    return `You completed ${completedToday} tasks today (${completionRate}% completion rate). Good effort!`;
+  }
+}
+
+/**
+ * Verify a screenshot using GPT-4 Vision
+ * Checks if work proof is legitimate
+ */
+async function verifyScreenshot(imageUrl, context) {
+  try {
+    const completion = await getOpenAI().chat.completions.create({
+      model: 'gpt-4-vision-preview',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an AI manager verifying work completion screenshots.
+Analyze the image and determine:
+1. Is this legitimate work proof?
+2. What work is shown?
+3. Does it match the claimed task?
+4. Any concerns or red flags?
+
+Return JSON: { "verified": true/false, "workDescription": "...", "concerns": "..." }`
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `Context: ${context}\n\nIs this legitimate work proof?`
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: imageUrl
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 300,
+      response_format: { type: 'json_object' }
+    });
+
+    return JSON.parse(completion.choices[0].message.content);
+  } catch (error) {
+    console.error('Error verifying screenshot:', error);
+    return {
+      verified: false,
+      workDescription: 'Could not analyze image',
+      concerns: error.message
+    };
+  }
+}
+
+/**
+ * Generate instant check-in acknowledgment
+ * Welcoming message when intern checks in
+ */
+async function generateCheckInResponse(intern, isLate) {
+  const now = new Date();
+  const hour = now.getHours();
+
+  let timeGreeting = 'Good morning';
+  if (hour >= 12 && hour < 17) timeGreeting = 'Good afternoon';
+  if (hour >= 17) timeGreeting = 'Good evening';
+
+  const lateNote = isLate ? " (Better late than never! ⏰)" : "";
+
+  return `${timeGreeting}, ${intern.name}!${lateNote} ✅ You're checked in.\n\n💪 Let's crush those tasks today! Type "show tasks" to see what's on your plate.`;
+}
+
 module.exports = {
   generateTasks,
   analyzeProgress,
@@ -362,5 +472,8 @@ module.exports = {
   generateWeeklyReview,
   learnFromData,
   generateResponse,
-  generateLeaderboard
+  generateLeaderboard,
+  generateValidationMessage,
+  verifyScreenshot,
+  generateCheckInResponse
 };

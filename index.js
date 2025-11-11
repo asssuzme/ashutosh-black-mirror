@@ -103,6 +103,51 @@ app.event('app_mention', async ({ event, say }) => {
 });
 
 /**
+ * Handle file uploads (screenshots for verification)
+ */
+app.event('file_shared', async ({ event, client }) => {
+  try {
+    console.log('📎 File uploaded:', event);
+
+    const fileInfo = await client.files.info({
+      file: event.file_id
+    });
+
+    const file = fileInfo.file;
+    const isImage = file.mimetype?.startsWith('image/');
+
+    if (isImage && event.user_id) {
+      const intern = await memory.getIntern(event.user_id);
+
+      if (intern) {
+        console.log(`🖼️ ${intern.name} uploaded screenshot, verifying...`);
+
+        // Get file URL (may need auth)
+        const imageUrl = file.url_private || file.permalink_public;
+
+        // Verify screenshot with GPT-4 Vision
+        const verification = await openaiHelper.verifyScreenshot(
+          imageUrl,
+          `Intern: ${intern.name}, Role: ${intern.role}, Current tasks: ${intern.currentTasks?.map(t => t.title).join(', ')}`
+        );
+
+        // Post verification result to their channel
+        await app.client.chat.postMessage({
+          channel: intern.channelId,
+          text: verification.verified
+            ? `✅ Screenshot verified!\n\n📝 Work identified: ${verification.workDescription}\n\nGreat job! Keep it up! 💪`
+            : `⚠️ Screenshot verification issue:\n\n${verification.concerns}\n\nPlease upload a clearer screenshot showing your work.`
+        });
+
+        console.log(`${verification.verified ? '✅' : '⚠️'} Screenshot verification for ${intern.name}: ${verification.workDescription}`);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error handling file upload:', error);
+  }
+});
+
+/**
  * Handle all incoming messages with AI-powered decision making
  */
 app.message(async ({ message, say, client }) => {
@@ -293,8 +338,26 @@ async function executeAction(action, message, say, intern) {
       case 'login':
         if (intern) {
           const today = new Date().toISOString().split('T')[0];
+          const now = new Date();
+          const hour = now.getHours();
+          const minute = now.getMinutes();
+
+          // Mark attendance
           await memory.markAttendance(message.user, today);
-          console.log(`✅ Marked attendance for ${intern.name}`);
+
+          // Check if late (after 10:30 AM)
+          const isLate = (hour > 10) || (hour === 10 && minute > 30);
+
+          // Generate instant check-in response
+          const checkInMsg = await openaiHelper.generateCheckInResponse(intern, isLate);
+
+          // Respond immediately in their channel
+          await app.client.chat.postMessage({
+            channel: intern.channelId,
+            text: checkInMsg
+          });
+
+          console.log(`✅ ${intern.name} checked in at ${now.toLocaleTimeString('en-IN')} ${isLate ? '(LATE)' : ''}`);
         }
         break;
 
@@ -309,6 +372,17 @@ async function executeAction(action, message, say, intern) {
       case 'mark_progress':
         // Progress marking handled separately
         console.log('📝 Progress update logged');
+        break;
+
+      case 'request_screenshot':
+        // Ask for screenshot proof of work
+        if (intern) {
+          await app.client.chat.postMessage({
+            channel: intern.channelId,
+            text: `📸 Great! Can you share a screenshot as proof of your work?\n\nJust upload it here and I'll verify it. This helps track our progress! 💪`
+          });
+          console.log(`📸 Requested screenshot from ${intern.name}`);
+        }
         break;
 
       case 'send_to_admin':
@@ -775,10 +849,10 @@ function setupCronJobs() {
     await sendDailyTasks();
   }, { timezone: TIMEZONE });
 
-  // Login check - 10 AM IST
-  cron.schedule('0 10 * * *', async () => {
-    console.log('Running: Login check');
-    await checkLoginStatus();
+  // Login check - 10:30 AM IST SHARP (not 10 AM)
+  cron.schedule('30 10 * * *', async () => {
+    console.log('Running: Login check at 10:30 AM SHARP');
+    await checkLoginStatusAggressive();
   }, { timezone: TIMEZONE });
 
   // Progress ping - 1 PM IST
@@ -791,6 +865,12 @@ function setupCronJobs() {
   cron.schedule('0 18 * * *', async () => {
     console.log('Running: End of day collection');
     await collectEndOfDay();
+  }, { timezone: TIMEZONE });
+
+  // Evening validation - 6:15 PM IST (after end of day, before summary)
+  cron.schedule('15 18 * * *', async () => {
+    console.log('Running: Evening validation messages');
+    await sendEveningValidation();
   }, { timezone: TIMEZONE });
 
   // Daily summary - 6:30 PM IST
@@ -834,9 +914,10 @@ async function sendDailyTasks() {
 }
 
 /**
- * Check login status and remind
+ * Aggressive login check - 10:30 AM sharp
+ * Posts to their assigned channel to publicly hold them accountable
  */
-async function checkLoginStatus() {
+async function checkLoginStatusAggressive() {
   const interns = await memory.getActiveInterns();
   const today = new Date().toISOString().split('T')[0];
 
@@ -844,11 +925,21 @@ async function checkLoginStatus() {
     const loggedIn = intern.attendance[today]?.loggedIn;
 
     if (!loggedIn) {
-      await slackHelper.sendDM(app, intern.slackId, {
-        text: `⚠️ Hey ${intern.name}! Haven't seen you log in yet today. Please send "/login" or just say "here" to mark your attendance.`
+      // POST TO CHANNEL, not DM - public accountability
+      await app.client.chat.postMessage({
+        channel: intern.channelId,
+        text: `⚠️ <@${intern.slackId}> Hey! It's 10:30 AM and I haven't seen you check in yet.\n\n🔔 *Please check in now* by typing "check in" or "/login"\n\nLet's get to work! 💪`
       });
+      console.log(`📢 Pinged ${intern.name} for late check-in in channel ${intern.channelId}`);
     }
   }
+}
+
+/**
+ * OLD check login status (kept for backward compatibility)
+ */
+async function checkLoginStatus() {
+  await checkLoginStatusAggressive();
 }
 
 /**
@@ -884,6 +975,41 @@ async function collectEndOfDay() {
           text: `📊 End of day check! You have ${incompleteTasks.length} task(s) remaining. Please send a final update or use "/done" if you've completed everything.`
         });
       }
+    }
+  }
+}
+
+/**
+ * Send evening validation messages to interns
+ * Praise their work and motivate them for tomorrow
+ */
+async function sendEveningValidation() {
+  const interns = await memory.getActiveInterns();
+  const today = new Date().toISOString().split('T')[0];
+
+  for (const intern of interns) {
+    const loggedIn = intern.attendance[today]?.loggedIn;
+
+    if (loggedIn) {
+      // Calculate tasks completed today
+      const completedToday = (intern.completedTasks || []).filter(t => {
+        const completedDate = new Date(t.completedAt).toISOString().split('T')[0];
+        return completedDate === today;
+      }).length;
+
+      const totalTasks = intern.currentTasks?.length || 0;
+      const completionRate = totalTasks > 0 ? Math.round((completedToday / totalTasks) * 100) : 0;
+
+      // Generate personalized validation message using AI
+      const validationMsg = await openaiHelper.generateValidationMessage(intern, completedToday, completionRate);
+
+      // Post to their channel - public recognition
+      await app.client.chat.postMessage({
+        channel: intern.channelId,
+        text: `🌟 <@${intern.slackId}>\n\n${validationMsg}\n\n✨ Great work today! See you tomorrow! 💪`
+      });
+
+      console.log(`✅ Sent evening validation to ${intern.name}`);
     }
   }
 }
