@@ -65,7 +65,40 @@
       "joinDate": "2025-11-11T08:49:56.189Z",
       "active": true,
       "attendance": {},
-      "currentTasks": [],
+      "currentTasks": [
+        {
+          "title": "Cold Call 20 leads",
+          "description": "Make 20 cold calls to potential leads from the provided list. Focus on introducing the company and setting up a follow-up meeting.",
+          "priority": "high",
+          "estimatedTime": "120",
+          "assignedAt": "2025-11-11T09:00:42.223Z",
+          "completed": false
+        },
+        {
+          "title": "Qualify 10 leads",
+          "description": "Reach out to 10 leads to qualify them based on specific criteria. Update CRM with relevant information gathered during the qualification process.",
+          "priority": "medium",
+          "estimatedTime": "90",
+          "assignedAt": "2025-11-11T09:00:42.223Z",
+          "completed": false
+        },
+        {
+          "title": "Follow-up on 5 leads",
+          "description": "Follow-up with 5 leads from previous interactions. Address any questions or concerns they may have and move them further down the sales pipeline.",
+          "priority": "medium",
+          "estimatedTime": "60",
+          "assignedAt": "2025-11-11T09:00:42.223Z",
+          "completed": false
+        },
+        {
+          "title": "Update CRM with latest interactions",
+          "description": "Update CRM with details of all the calls made, leads qualified, and follow-ups completed today. Ensure all information is accurate and up-to-date.",
+          "priority": "high",
+          "estimatedTime": "30",
+          "assignedAt": "2025-11-11T09:00:42.223Z",
+          "completed": false
+        }
+      ],
       "completedTasks": [
         {
           "title": "Cold Calling",
@@ -123,7 +156,7 @@
         "performanceHistory": []
       },
       "stats": {
-        "totalTasksAssigned": 5,
+        "totalTasksAssigned": 9,
         "totalTasksCompleted": 5,
         "averageQualityScore": 0,
         "attendanceRate": 0,
@@ -131,5 +164,5 @@
       }
     }
   ],
-  "lastUpdated": "2025-11-11T08:50:12.425Z"
+  "lastUpdated": "2025-11-11T09:00:42.224Z"
 }
