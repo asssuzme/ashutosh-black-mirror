@@ -292,6 +292,8 @@ async function handleAdminDirectMessage(message, say) {
 
       // Find the intern
       const interns = await memory.getActiveInterns();
+      console.log(`🔍 Searching for intern "${targetName}" among ${interns.length} interns:`, interns.map(i => i.name));
+
       const intern = interns.find(i =>
         i.name.toLowerCase().includes(targetName.toLowerCase()) ||
         targetName.toLowerCase().includes(i.name.toLowerCase())
@@ -302,14 +304,29 @@ async function handleAdminDirectMessage(message, say) {
         return;
       }
 
-      // Send message to intern's channel IMMEDIATELY
-      await app.client.chat.postMessage({
-        channel: intern.channelId,
-        text: `📢 *Message from the boss:*\n\n${messageToSend}`
-      });
+      console.log(`✅ Found intern: ${intern.name} (${intern.slackId}), channelId: ${intern.channelId}`);
 
-      await say(`✅ Messaged ${intern.name} in their channel.`);
-      console.log(`✅ Executed: Sent message to ${intern.name}`);
+      // Verify channel is valid (not a DM)
+      if (intern.channelId.startsWith('D')) {
+        await say(`❌ Error: ${intern.name}'s channelId is a DM (${intern.channelId}). They need a team channel assigned.`);
+        return;
+      }
+
+      // Send message to intern's channel IMMEDIATELY
+      try {
+        console.log(`📤 Posting to channel ${intern.channelId}:`, messageToSend);
+
+        await app.client.chat.postMessage({
+          channel: intern.channelId,
+          text: `📢 *Message from the boss:*\n\n${messageToSend}`
+        });
+
+        await say(`✅ Messaged ${intern.name} in <#${intern.channelId}>`);
+        console.log(`✅ Successfully sent message to ${intern.name} in channel ${intern.channelId}`);
+      } catch (postError) {
+        console.error('❌ Failed to post message:', postError);
+        await say(`❌ Failed to post message: ${postError.message}`);
+      }
       return;
     }
 
