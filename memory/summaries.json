@@ -1,5 +1,84 @@
 {
-  "dailySummaries": [],
+  "dailySummaries": [
+    {
+      "date": "2025-11-11",
+      "summary": "### Daily Performance Summary\n\n- **Overall Team Performance:**\n  - Logged in: 1/3 members\n  - Updates Count: 0 total across the team\n  - Tasks Completed: 5 total across the team\n\n- **Top Performers:**\n  - Ashutosh Lath: Completed 5 tasks\n\n- **Concerns or Lagging Members:**\n  - Example Intern and Ashutosh (Sales) did not log in or complete any tasks.\n\n- **Notable Achievements:**\n  - Ashutosh Lath's engagement and completion of 5 tasks stand out, especially given the overall team performance.\n\n- **Recommended Actions:**\n  - **Engagement:** Address login and engagement issues with the sales team members.\n  - **Recognition:** Acknowledge Ashutosh Lath's contributions to keep morale high.\n  - **Performance Review:** Consider a brief check-in with the sales team to understand and mitigate barriers to performance.",
+      "stats": {
+        "date": "2025-11-11",
+        "attendance": {
+          "total": 3,
+          "present": 1,
+          "rate": 33
+        },
+        "tasksCompleted": 5,
+        "progressUpdates": 0,
+        "avgQuality": "N/A",
+        "internDetails": [
+          {
+            "name": "Example Intern",
+            "role": "sales",
+            "loggedIn": false,
+            "updatesCount": 0,
+            "tasksCompleted": 0
+          },
+          {
+            "name": "Ashutosh",
+            "role": "sales",
+            "loggedIn": false,
+            "updatesCount": 0,
+            "tasksCompleted": 0
+          },
+          {
+            "name": "Ashutosh Lath",
+            "role": "shitposters",
+            "loggedIn": true,
+            "updatesCount": 0,
+            "tasksCompleted": 5
+          }
+        ]
+      },
+      "timestamp": "2025-11-11T13:00:06.913Z"
+    },
+    {
+      "date": "2025-11-11",
+      "summary": "### Daily Performance Summary\n\n- **Overall Team Performance:** \n  - Activity was low across the team today. Only one member logged in and reported task completion.\n\n- **Top Performers:**\n  - **Ashutosh Lath** stands out as the top performer with 5 tasks completed.\n\n- **Concerns or Lagging Members:**\n  - Both **Example Intern** and **Ashutosh** did not log in or complete any tasks today. Their engagement needs to be addressed.\n\n- **Notable Achievements:**\n  - **Ashutosh Lath** completed 5 tasks, showing commendable productivity among the team.\n\n- **Recommended Actions:**\n  - Follow up with **Example Intern** and **Ashutosh** to understand barriers to their engagement and productivity.\n  - Recognize **Ashutosh Lath's** efforts and explore if his strategies can be shared with the team for overall improvement.\n  - Implement regular check-ins to increase team engagement and productivity metrics.",
+      "stats": {
+        "date": "2025-11-11",
+        "attendance": {
+          "total": 3,
+          "present": 1,
+          "rate": 33
+        },
+        "tasksCompleted": 5,
+        "progressUpdates": 0,
+        "avgQuality": "N/A",
+        "internDetails": [
+          {
+            "name": "Example Intern",
+            "role": "sales",
+            "loggedIn": false,
+            "updatesCount": 0,
+            "tasksCompleted": 0
+          },
+          {
+            "name": "Ashutosh",
+            "role": "sales",
+            "loggedIn": false,
+            "updatesCount": 0,
+            "tasksCompleted": 0
+          },
+          {
+            "name": "Ashutosh Lath",
+            "role": "shitposters",
+            "loggedIn": true,
+            "updatesCount": 0,
+            "tasksCompleted": 5
+          }
+        ]
+      },
+      "timestamp": "2025-11-11T13:00:08.102Z"
+    }
+  ],
   "weeklySummaries": [],
   "learningInsights": {
     "patterns": {
@@ -31,5 +110,5 @@
       }
     }
   },
-  "lastUpdated": "2025-01-01T00:00:00.000Z"
+  "lastUpdated": "2025-11-11T13:00:08.102Z"
 }
