@@ -15,6 +15,7 @@ const contextClassifier = require('./utils/contextClassifier');
 const openaiHelper = require('./utils/openaiHelper');
 const slackHelper = require('./utils/slackHelper');
 const memory = require('./utils/memoryManager');
+const aiDecisionEngine = require('./utils/aiDecisionEngine');
 
 // Ensure memory directory exists
 const memoryDir = path.join(__dirname, 'memory');
@@ -102,9 +103,9 @@ app.event('app_mention', async ({ event, say }) => {
 });
 
 /**
- * Handle all incoming messages
+ * Handle all incoming messages with AI-powered decision making
  */
-app.message(async ({ message, say }) => {
+app.message(async ({ message, say, client }) => {
   try {
     // Ignore bot messages
     if (message.bot_id || message.user === BOT_USER_ID) {
@@ -118,33 +119,206 @@ app.message(async ({ message, say }) => {
       channel_type: message.channel_type
     });
 
-    // Classify message intent
-    const intent = contextClassifier.classifyIntent(message, BOT_USER_ID);
-    console.log(`🎯 Intent classified: ${intent}`);
-
-    // Handle based on intent
-    if (intent === 'ADMIN_DIRECTIVE') {
-      console.log('👨‍💼 Handling admin directive');
-      await handleAdminDirective(message, say);
-    } else if (intent === 'INTERN_TO_BOT') {
-      console.log('🤖 Handling intern command');
-      await handleInternCommand(message, say);
-    } else if (intent === 'BLOCKED_DM') {
-      console.log('🚫 Blocked DM from non-admin');
-      await handleBlockedDM(message, say);
-    } else if (intent === 'ADMIN_MESSAGE') {
-      // Admin talking in channels - just log for context
-      console.log('📝 Admin message in channel - logging for context');
-    } else if (intent === 'GENERAL_CHAT') {
-      // General chat - log for learning but don't respond
-      console.log('💬 General chat - logging');
-      await logGeneralChat(message);
+    // Quick decision for obvious cases
+    const quickCheck = aiDecisionEngine.quickDecision(message, BOT_USER_ID);
+    if (quickCheck === 'IGNORE') {
+      return;
     }
+
+    // Get monitored channels
+    const monitoredChannels = [
+      process.env.SALES_CHANNEL_ID,
+      process.env.OUTREACH_CHANNEL_ID,
+      process.env.SHITPOSTERS_CHANNEL_ID
+    ].filter(Boolean);
+
+    // Check if this is a monitored channel or admin DM
+    const isMonitoredChannel = monitoredChannels.includes(message.channel);
+    const isAdminDM = message.channel_type === 'im' && message.user === ADMIN_USER_ID;
+
+    // Only process messages from monitored channels or admin DMs
+    if (!isMonitoredChannel && !isAdminDM) {
+      console.log('📭 Message from non-monitored channel, ignoring');
+      return;
+    }
+
+    // Build context for AI decision
+    console.log('🧠 Building context for AI decision...');
+
+    const [sender, intern, channelInfo, recentMessages, allInterns, rules] = await Promise.all([
+      slackHelper.getUserInfo(app, message.user),
+      memory.getIntern(message.user),
+      getChannelInfo(client, message.channel),
+      getRecentMessages(client, message.channel, 5),
+      memory.getActiveInterns(),
+      memory.getRules()
+    ]);
+
+    const isAdmin = message.user === ADMIN_USER_ID;
+
+    // Send to AI for decision
+    const decision = await aiDecisionEngine.analyzeMessage({
+      message,
+      sender: {
+        id: message.user,
+        name: sender?.real_name || sender?.name || 'Unknown'
+      },
+      internProfile: intern,
+      channelInfo,
+      recentMessages,
+      allInterns,
+      rules,
+      isAdmin
+    });
+
+    console.log('🤖 AI Decision:', decision);
+
+    // Execute decision
+    if (decision.shouldRespond && decision.response) {
+      await say(decision.response);
+    }
+
+    // Execute action if needed
+    if (decision.action) {
+      await executeAction(decision.action, message, say, intern);
+    }
+
+    // Log for learning
+    await logInteraction(message, decision, intern);
+
   } catch (error) {
     console.error('❌ Error handling message:', error);
     console.error('Stack:', error.stack);
   }
 });
+
+/**
+ * Get channel information
+ */
+async function getChannelInfo(client, channelId) {
+  try {
+    if (channelId.startsWith('D')) {
+      // DM channel
+      return {
+        id: channelId,
+        name: 'Direct Message',
+        type: 'im'
+      };
+    }
+
+    const result = await client.conversations.info({
+      channel: channelId
+    });
+
+    return {
+      id: channelId,
+      name: result.channel?.name || 'Unknown',
+      type: 'channel'
+    };
+  } catch (error) {
+    console.error('Error getting channel info:', error);
+    return {
+      id: channelId,
+      name: 'Unknown',
+      type: 'unknown'
+    };
+  }
+}
+
+/**
+ * Get recent messages from channel for context
+ */
+async function getRecentMessages(client, channelId, limit = 5) {
+  try {
+    const result = await client.conversations.history({
+      channel: channelId,
+      limit: limit + 1 // +1 to exclude current message
+    });
+
+    return (result.messages || []).map(msg => ({
+      text: msg.text,
+      user: msg.user,
+      user_name: msg.user_profile?.real_name || msg.user_profile?.name || 'Unknown',
+      ts: msg.ts
+    }));
+  } catch (error) {
+    console.error('Error getting recent messages:', error);
+    return [];
+  }
+}
+
+/**
+ * Execute action decided by AI
+ */
+async function executeAction(action, message, say, intern) {
+  try {
+    console.log(`⚡ Executing action: ${action}`);
+
+    switch (action) {
+      case 'login':
+        if (intern) {
+          const today = new Date().toISOString().split('T')[0];
+          await memory.markAttendance(message.user, today);
+          console.log(`✅ Marked attendance for ${intern.name}`);
+        }
+        break;
+
+      case 'assign_tasks':
+        if (intern && intern.currentTasks.length === 0) {
+          const tasks = await openaiHelper.generateDailyTasks(intern.role, 'medium');
+          await memory.assignTasks(message.user, tasks);
+          console.log(`✅ Assigned ${tasks.length} tasks to ${intern.name}`);
+        }
+        break;
+
+      case 'mark_progress':
+        // Progress marking handled separately
+        console.log('📝 Progress update logged');
+        break;
+
+      case 'send_to_admin':
+        // Notify admin of important event
+        await app.client.chat.postMessage({
+          channel: process.env.ADMIN_DM_CHANNEL_ID || ADMIN_USER_ID,
+          text: `🚨 *Notification*\n${intern?.name || 'Someone'} needs attention:\n"${message.text}"`
+        });
+        console.log('📢 Notification sent to admin');
+        break;
+
+      default:
+        console.log(`⚠️ Unknown action: ${action}`);
+    }
+  } catch (error) {
+    console.error('Error executing action:', error);
+  }
+}
+
+/**
+ * Log interaction for learning
+ */
+async function logInteraction(message, decision, intern) {
+  try {
+    const log = {
+      timestamp: new Date().toISOString(),
+      user: message.user,
+      userName: intern?.name || 'Unknown',
+      channel: message.channel,
+      message: message.text,
+      decision: {
+        shouldRespond: decision.shouldRespond,
+        type: decision.responseType,
+        reasoning: decision.reasoning
+      },
+      action: decision.action
+    };
+
+    // Store in memory for learning
+    const logsPath = path.join(__dirname, 'memory', 'interactions.jsonl');
+    fs.appendFileSync(logsPath, JSON.stringify(log) + '\n');
+  } catch (error) {
+    console.error('Error logging interaction:', error);
+  }
+}
 
 /**
  * Handle admin directives

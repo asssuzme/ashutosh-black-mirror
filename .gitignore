@@ -113,6 +113,9 @@ temp/
 # Memory backups (keep originals)
 memory/*.backup
 
+# Interaction logs
+memory/interactions.jsonl
+
 # Replit specific
 .replit
 .config/
