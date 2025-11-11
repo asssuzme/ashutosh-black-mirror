@@ -83,6 +83,25 @@ async function sendAdminMessage(text, blocks = null) {
 }
 
 /**
+ * Handle app mentions (when someone @mentions the bot)
+ */
+app.event('app_mention', async ({ event, say }) => {
+  try {
+    console.log('🔔 Bot mentioned:', {
+      user: event.user,
+      text: event.text,
+      channel: event.channel
+    });
+
+    // Treat all mentions as INTERN_TO_BOT
+    await handleInternCommand(event, say);
+  } catch (error) {
+    console.error('❌ Error handling mention:', error);
+    console.error('Stack:', error.stack);
+  }
+});
+
+/**
  * Handle all incoming messages
  */
 app.message(async ({ message, say }) => {
@@ -92,24 +111,35 @@ app.message(async ({ message, say }) => {
       return;
     }
 
+    console.log('📨 Received message:', {
+      user: message.user,
+      text: message.text,
+      channel: message.channel,
+      channel_type: message.channel_type
+    });
+
     // Classify message intent
     const intent = contextClassifier.classifyIntent(message, BOT_USER_ID);
-    console.log(`Message from ${message.user}: "${message.text}" -> Intent: ${intent}`);
+    console.log(`🎯 Intent classified: ${intent}`);
 
     // Handle based on intent
     if (intent === 'ADMIN_DIRECTIVE') {
+      console.log('👨‍💼 Handling admin directive');
       await handleAdminDirective(message, say);
     } else if (intent === 'INTERN_TO_BOT') {
+      console.log('🤖 Handling intern command');
       await handleInternCommand(message, say);
     } else if (intent === 'ADMIN_MESSAGE') {
       // Admin talking in channels - just log for context
-      console.log('Admin message in channel - logging for context');
+      console.log('📝 Admin message in channel - logging for context');
     } else if (intent === 'GENERAL_CHAT') {
       // General chat - log for learning but don't respond
+      console.log('💬 General chat - logging');
       await logGeneralChat(message);
     }
   } catch (error) {
-    console.error('Error handling message:', error);
+    console.error('❌ Error handling message:', error);
+    console.error('Stack:', error.stack);
   }
 });
 
