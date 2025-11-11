@@ -108,7 +108,7 @@
       "attendance": {
         "2025-11-11": {
           "loggedIn": true,
-          "timestamp": "2025-11-11T09:09:05.135Z"
+          "timestamp": "2025-11-11T09:32:35.517Z"
         }
       },
       "currentTasks": [
@@ -206,9 +206,9 @@
         "totalTasksCompleted": 5,
         "averageQualityScore": 0,
         "attendanceRate": 100,
-        "lastActive": "2025-11-11T09:09:05.135Z"
+        "lastActive": "2025-11-11T09:32:35.517Z"
       }
     }
   ],
-  "lastUpdated": "2025-11-11T09:13:26.761Z"
+  "lastUpdated": "2025-11-11T09:32:35.518Z"
 }
