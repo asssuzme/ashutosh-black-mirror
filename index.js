@@ -329,9 +329,9 @@ async function handleGeneralDirective(directive, say) {
  */
 async function handleInternCommand(message, say) {
   const command = contextClassifier.parseCommand(message.text);
-  const intern = await memory.getIntern(message.user);
+  let intern = await memory.getIntern(message.user);
 
-  // If intern not in system, auto-add them
+  // If intern not in system, auto-add them with their current channel
   if (!intern) {
     const userInfo = await slackHelper.getUserInfo(app, message.user);
     const newIntern = {
@@ -341,6 +341,26 @@ async function handleInternCommand(message, say) {
       channelId: message.channel
     };
     await memory.addIntern(newIntern);
+    intern = await memory.getIntern(message.user);
+  }
+
+  // CRITICAL: Verify intern is in their assigned channel (not admin)
+  if (message.user !== ADMIN_USER_ID && message.channel !== intern.channelId) {
+    console.log(`🚫 ${intern.name} tried to use bot in wrong channel. Current: ${message.channel}, Assigned: ${intern.channelId}`);
+
+    await say({
+      text: `🚫 Please use your assigned team channel.`,
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `🚫 *Wrong channel!*\n\nYou can only interact with me in your assigned team channel: <#${intern.channelId}>\n\nPlease go there to continue.`
+          }
+        }
+      ]
+    });
+    return;
   }
 
   try {
