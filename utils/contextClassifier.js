@@ -46,6 +46,15 @@ function classifyIntent(message, botUserId) {
   const { user, text, channel_type, channel } = message;
   const lowerText = (text || '').toLowerCase();
 
+  // Get monitored channels from env
+  const monitoredChannels = [
+    process.env.SALES_CHANNEL_ID,
+    process.env.OUTREACH_CHANNEL_ID,
+    process.env.SHITPOSTERS_CHANNEL_ID
+  ].filter(Boolean);
+
+  const isMonitoredChannel = monitoredChannels.includes(channel);
+
   // 1. Bot mention - directly mentioned in message (highest priority)
   if (text && text.includes(`<@${botUserId}>`)) {
     return 'INTERN_TO_BOT';
@@ -63,7 +72,20 @@ function classifyIntent(message, botUserId) {
     return 'INTERN_TO_BOT';
   }
 
-  // 4. Admin-specific handling (after bot commands are checked)
+  // 4. Messages in monitored channels - respond to work-related messages
+  if (isMonitoredChannel && channel_type === 'channel') {
+    // Check if message seems work-related or directed at bot
+    const workKeywords = ['task', 'work', 'done', 'completed', 'progress', 'help',
+                          'clocking', 'login', 'logout', 'attendance', 'status',
+                          'update', 'report', 'assign', 'finish'];
+    const seemsWorkRelated = workKeywords.some(keyword => lowerText.includes(keyword));
+
+    if (seemsWorkRelated) {
+      return 'INTERN_TO_BOT';
+    }
+  }
+
+  // 5. Admin-specific handling (after bot commands are checked)
   if (user === ADMIN_USER_ID) {
     if (channel_type === 'im') {
       // Check if it's an admin directive or just using the bot
@@ -77,22 +99,22 @@ function classifyIntent(message, botUserId) {
     return 'ADMIN_MESSAGE';
   }
 
-  // 5. Direct message to bot (DMs from non-admin)
+  // 6. Direct message to bot (DMs from non-admin)
   if (channel_type === 'im') {
     return 'INTERN_TO_BOT';
   }
 
-  // 6. Mentions admin - likely talking to the boss
+  // 7. Mentions admin - likely talking to the boss
   if (text && text.includes(`<@${ADMIN_USER_ID}>`)) {
     return 'INTERN_TO_BOSS';
   }
 
-  // 7. Reply to admin message
+  // 8. Reply to admin message
   if (message.thread_ts && message.parent_user_id === ADMIN_USER_ID) {
     return 'INTERN_TO_BOSS';
   }
 
-  // 8. Default - general team chat
+  // 9. Default - general team chat
   return 'GENERAL_CHAT';
 }
 
