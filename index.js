@@ -16,6 +16,7 @@ const openaiHelper = require('./utils/openaiHelper');
 const slackHelper = require('./utils/slackHelper');
 const memory = require('./utils/memoryManager');
 const aiDecisionEngine = require('./utils/aiDecisionEngine');
+const conversationMemory = require('./utils/conversationMemory');
 
 // Ensure memory directory exists
 const memoryDir = path.join(__dirname, 'memory');
@@ -249,6 +250,22 @@ app.message(async ({ message, say, client }) => {
       });
 
       console.log(`✅ ${intern.name} checked in at ${now.toLocaleTimeString('en-IN')} ${isLate ? '(LATE)' : ''}`);
+
+      // Store check-in in conversation memory
+      await conversationMemory.storeConversation({
+        messageId: message.ts,
+        channelId: message.channel,
+        channelName: intern.channelId,
+        userId: message.user,
+        userName: intern.name,
+        userRole: intern.role,
+        message: message.text,
+        intent: 'check_in',
+        botResponse: checkInMsg,
+        actionsTaken: ['login'],
+        tags: ['check_in', isLate ? 'late' : 'on_time']
+      });
+
       return; // Done, don't process further
     }
 
@@ -618,27 +635,53 @@ async function handleAgenticMessage(directive, say) {
 }
 
 /**
- * Log interaction for learning
+ * Log interaction for learning using conversation memory system
  */
 async function logInteraction(message, decision, intern) {
   try {
-    const log = {
-      timestamp: new Date().toISOString(),
-      user: message.user,
-      userName: intern?.name || 'Unknown',
-      channel: message.channel,
+    // Get channel name for context
+    let channelName = 'Unknown';
+    try {
+      if (!message.channel.startsWith('D')) {
+        const channelInfo = await app.client.conversations.info({
+          channel: message.channel
+        });
+        channelName = channelInfo.channel?.name || 'Unknown';
+      } else {
+        channelName = 'Direct Message';
+      }
+    } catch (e) {
+      // Fallback if channel lookup fails
+      channelName = message.channel;
+    }
+
+    // Store comprehensive conversation data
+    await conversationMemory.storeConversation({
+      messageId: message.ts,
+      threadId: message.thread_ts || null,
+      channelId: message.channel,
+      channelName: channelName,
+      userId: message.user,
+      userName: intern?.name || 'Unknown User',
+      userRole: intern?.role || null,
+
       message: message.text,
-      decision: {
+      messageType: 'text',
+
+      intent: decision.responseType || null,
+      aiDecision: {
         shouldRespond: decision.shouldRespond,
-        type: decision.responseType,
         reasoning: decision.reasoning
       },
-      action: decision.action
-    };
+      botResponse: decision.response || null,
+      actionsTaken: decision.action ? [decision.action] : [],
 
-    // Store in memory for learning
-    const logsPath = path.join(__dirname, 'memory', 'interactions.jsonl');
-    fs.appendFileSync(logsPath, JSON.stringify(log) + '\n');
+      isFirstMessageOfDay: false, // Can enhance this later
+
+      tags: [decision.responseType].filter(Boolean)
+    });
+
+    console.log('📝 Conversation logged to memory');
   } catch (error) {
     console.error('Error logging interaction:', error);
   }

@@ -5,6 +5,7 @@
  */
 
 const OpenAI = require('openai');
+const conversationMemory = require('./conversationMemory');
 
 // Lazy-load OpenAI client
 let openai = null;
@@ -45,7 +46,17 @@ async function analyzeMessage(params) {
     if (isAdmin && isDM) {
       console.log('👨‍💼 Admin DM - forcing response');
 
-      const prompt = buildAnalysisPrompt(params);
+      // Get admin conversation context too
+      const conversationContext = await conversationMemory.buildContext({
+        userId: sender.id,
+        channelId: message.channel,
+        threadId: message.thread_ts || null,
+        includeHistory: true
+      });
+
+      params.conversationContext = conversationContext;
+
+      const prompt = await buildAnalysisPrompt(params);
       const completion = await getOpenAI().chat.completions.create({
         model: 'gpt-4-turbo-preview',
         messages: [
@@ -93,7 +104,21 @@ IMPORTANT: If admin says things like "tell X to do Y", "message X about Y", "inf
       console.log('👨‍💼 Admin message in channel - will prioritize response');
     }
 
-    const prompt = buildAnalysisPrompt(params);
+    // BUILD CONVERSATION CONTEXT for true context awareness
+    console.log('📚 Fetching conversation context...');
+    const conversationContext = await conversationMemory.buildContext({
+      userId: sender.id,
+      channelId: channelInfo.id,
+      threadId: message.thread_ts || null,
+      includeHistory: true
+    });
+
+    console.log(`✅ Context loaded: ${conversationContext.history.userConversations.length} user conversations, ${conversationContext.history.channelContext.length} channel messages`);
+
+    // Add conversation context to params
+    params.conversationContext = conversationContext;
+
+    const prompt = await buildAnalysisPrompt(params);
 
     const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4-turbo-preview',
@@ -176,8 +201,9 @@ Action guide:
 
 /**
  * Build the context-rich prompt for AI analysis
+ * Now includes conversation history for true context awareness
  */
-function buildAnalysisPrompt(params) {
+async function buildAnalysisPrompt(params) {
   const {
     message,
     sender,
@@ -186,7 +212,8 @@ function buildAnalysisPrompt(params) {
     recentMessages,
     allInterns,
     rules,
-    isAdmin
+    isAdmin,
+    conversationContext  // NEW: Full conversation context
   } = params;
 
   const now = new Date();
@@ -205,6 +232,27 @@ function buildAnalysisPrompt(params) {
 "${message.text}"
 
 ${message.thread_ts ? '**Note:** This is a thread reply' : ''}
+
+---
+
+# CONVERSATION HISTORY WITH THIS USER
+
+${conversationContext && conversationContext.history.userConversations.length > 0 ? `
+**Recent Interactions:** (Last ${conversationContext.history.userConversations.length})
+
+${conversationContext.history.userConversations.slice(-5).map(conv =>
+  `[${new Date(conv.timestamp).toLocaleTimeString('en-IN')}] **${conv.userName}:** "${conv.message}"
+   → **You responded:** "${conv.botResponse || 'No response'}"
+   → **Action:** ${conv.actionsTaken.join(', ') || 'None'}`
+).join('\n\n')}
+
+**Behavior Patterns:**
+- Total interactions: ${conversationContext.patterns.totalInteractions}
+- Common intents: ${conversationContext.patterns.commonIntents.join(', ') || 'None yet'}
+- Preferred time: ${conversationContext.patterns.preferredTimeOfDay ? `${conversationContext.patterns.preferredTimeOfDay}:00` : 'Unknown'}
+- Engagement level: ${conversationContext.patterns.engagementLevel}
+- Last seen: ${conversationContext.patterns.lastInteraction ? new Date(conversationContext.patterns.lastInteraction).toLocaleString('en-IN') : 'First interaction'}
+` : '**First interaction with this user**'}
 
 ---
 
@@ -241,8 +289,15 @@ ${internProfile.currentTasks.map((t, i) =>
 
 ---
 
-# RECENT CHANNEL HISTORY (Last 5 messages)
-${recentMessages.map(m => `[${new Date(m.ts * 1000).toLocaleTimeString('en-IN')}] ${m.user_name || 'Unknown'}: ${m.text}`).join('\n')}
+# CHANNEL CONTEXT
+
+${conversationContext && conversationContext.history.channelContext.length > 0 ? `
+**Recent Channel Activity:** (Last ${conversationContext.history.channelContext.length} messages)
+
+${conversationContext.history.channelContext.slice(-3).map(conv =>
+  `[${new Date(conv.timestamp).toLocaleTimeString('en-IN')}] ${conv.userName}: "${conv.message.substring(0, 100)}${conv.message.length > 100 ? '...' : ''}"`
+).join('\n')}
+` : '**No recent channel activity**'}
 
 ---
 
@@ -265,7 +320,15 @@ ${allInterns.map(intern =>
 
 # YOUR DECISION TASK
 
-Analyze this message and decide:
+**CRITICAL CONTEXT AWARENESS:**
+You have access to this person's full conversation history above. Use it to:
+1. Understand their communication patterns
+2. Reference previous conversations naturally
+3. Build on previous interactions
+4. Detect changes in behavior or mood
+5. Provide personalized, contextual responses
+
+Analyze this message considering ALL the context above and decide:
 
 1. **Should you respond?** Consider:
    - Is this directed at you explicitly? (@mention, "/login", "my tasks", etc.)
