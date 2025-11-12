@@ -465,6 +465,52 @@ async function generateCheckInResponse(intern, isLate) {
   return `${timeGreeting}, ${intern.name}!${lateNote} ✅ You're checked in.\n\n💪 Let's crush those tasks today! Type "show tasks" to see what's on your plate.`;
 }
 
+/**
+ * Rewrite admin directive to be professional and contextual
+ * Transform raw admin message into proper workplace communication
+ */
+async function rewriteAdminDirective(rawMessage, internName, internRole) {
+  try {
+    const completion = await getOpenAI().chat.completions.create({
+      model: FAST_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: `You are an AI assistant that rewrites boss directives into professional workplace messages for employees.
+
+Transform the raw boss message into a proper, professional communication that:
+- Is polite and respectful
+- Provides context and clarity
+- Maintains urgency if needed
+- Uses appropriate workplace tone
+- Adds helpful details
+
+For example:
+Input: "he has a meeting with tatiya at 8am tmrw"
+Output: "Good morning! Just a heads up - you have a meeting scheduled with Tatiya tomorrow at 8:00 AM. Please make sure you're available and prepared. Let me know if you have any questions!"
+
+Input: "finish the posters"
+Output: "Hi! Quick reminder to prioritize completing the poster designs. The boss is expecting these to be finished soon. Let me know if you need any resources or have questions!"
+
+Keep it natural, professional, and helpful. Output ONLY the rewritten message, no extra text.`
+        },
+        {
+          role: 'user',
+          content: `Intern: ${internName} (${internRole})\nBoss message: "${rawMessage}"\n\nRewrite this professionally:`
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 200
+    });
+
+    return completion.choices[0].message.content.trim();
+  } catch (error) {
+    console.error('Error rewriting admin directive:', error);
+    // Fallback to original message if AI fails
+    return rawMessage;
+  }
+}
+
 module.exports = {
   generateTasks,
   analyzeProgress,
@@ -475,5 +521,6 @@ module.exports = {
   generateLeaderboard,
   generateValidationMessage,
   verifyScreenshot,
-  generateCheckInResponse
+  generateCheckInResponse,
+  rewriteAdminDirective
 };

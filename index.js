@@ -222,12 +222,58 @@ app.message(async ({ message, say, client }) => {
       return;
     }
 
-    // Regular intern messages - use AI decision engine
+    // Get intern info first for quick checks
+    const intern = await memory.getIntern(message.user);
+    const text = (message.text || '').toLowerCase();
+
+    // SIMPLE CHECK-IN DETECTION - Before AI
+    const checkInKeywords = ['log in', 'login', 'check in', 'checking in', 'here', 'present', 'attendance', 'mark my attendance'];
+    const isCheckIn = checkInKeywords.some(keyword => text.includes(keyword));
+
+    if (isCheckIn && intern) {
+      console.log(`✅ INSTANT CHECK-IN detected for ${intern.name}`);
+
+      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const hour = now.getHours();
+      const minute = now.getMinutes();
+      const isLate = (hour > 10) || (hour === 10 && minute > 30);
+
+      await memory.markAttendance(message.user, today);
+
+      const checkInMsg = await openaiHelper.generateCheckInResponse(intern, isLate);
+
+      await app.client.chat.postMessage({
+        channel: intern.channelId,
+        text: checkInMsg
+      });
+
+      console.log(`✅ ${intern.name} checked in at ${now.toLocaleTimeString('en-IN')} ${isLate ? '(LATE)' : ''}`);
+      return; // Done, don't process further
+    }
+
+    // SIMPLE "TELL BOSS" DETECTION - Before AI
+    const tellBossKeywords = ['tell the boss', 'tell boss', 'inform boss', 'contact admin', 'message the boss'];
+    const isTellBoss = tellBossKeywords.some(keyword => text.includes(keyword));
+
+    if (isTellBoss && intern) {
+      console.log(`📢 ${intern.name} wants to tell the boss something`);
+
+      await app.client.chat.postMessage({
+        channel: process.env.ADMIN_DM_CHANNEL_ID || ADMIN_USER_ID,
+        text: `🚨 *Message from ${intern.name}:*\n\n"${message.text}"\n\n_Sent from <#${message.channel}>_`
+      });
+
+      await say(`✅ I've forwarded your message to the boss. They'll get back to you soon!`);
+      console.log(`✅ Forwarded message from ${intern.name} to admin`);
+      return; // Done
+    }
+
+    // Regular intern messages - use AI decision engine for everything else
     console.log('🧠 Building context for AI decision (intern message)...');
 
-    const [sender, intern, channelInfo, recentMessages, allInterns, rules] = await Promise.all([
+    const [sender, channelInfo, recentMessages, allInterns, rules] = await Promise.all([
       slackHelper.getUserInfo(app, message.user),
-      memory.getIntern(message.user),
       getChannelInfo(client, message.channel),
       getRecentMessages(client, message.channel, 5),
       memory.getActiveInterns(),
@@ -312,17 +358,26 @@ async function handleAdminDirectMessage(message, say) {
         return;
       }
 
-      // Send message to intern's channel IMMEDIATELY
+      // Send message to intern's channel - REWRITE with AI for professionalism
       try {
-        console.log(`📤 Posting to channel ${intern.channelId}:`, messageToSend);
+        console.log(`📤 Rewriting admin message for ${intern.name}:`, messageToSend);
+
+        // Use AI to rewrite the message professionally and contextually
+        const rewrittenMessage = await openaiHelper.rewriteAdminDirective(
+          messageToSend,
+          intern.name,
+          intern.role
+        );
+
+        console.log(`✅ Rewritten message:`, rewrittenMessage);
 
         await app.client.chat.postMessage({
           channel: intern.channelId,
-          text: `📢 *Message from the boss:*\n\n${messageToSend}`
+          text: `📢 *Message from the boss:*\n\n${rewrittenMessage}`
         });
 
-        await say(`✅ Messaged ${intern.name} in <#${intern.channelId}>`);
-        console.log(`✅ Successfully sent message to ${intern.name} in channel ${intern.channelId}`);
+        await say(`✅ Messaged ${intern.name} in <#${intern.channelId}>\n\n_Original:_ "${messageToSend}"\n_Sent as:_ "${rewrittenMessage}"`);
+        console.log(`✅ Successfully sent rewritten message to ${intern.name}`);
       } catch (postError) {
         console.error('❌ Failed to post message:', postError);
         await say(`❌ Failed to post message: ${postError.message}`);
