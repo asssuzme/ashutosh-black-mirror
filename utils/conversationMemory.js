@@ -39,7 +39,7 @@ async function storeConversation(data) {
     intent: data.intent || null,
     aiDecision: data.aiDecision || null,
     botResponse: data.botResponse || null,
-    actionsT aken: data.actionsTaken || [],
+    actionsTaken: data.actionsTaken || [],
 
     // Context
     timeOfDay: new Date().getHours(),
