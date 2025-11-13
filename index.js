@@ -110,7 +110,12 @@ app.event('app_mention', async ({ event, say, client }) => {
     console.log(`📝 Lowercase text: "${text}"`);
 
     // SIMPLE "TELL BOSS" DETECTION - Before AI
-    const tellBossKeywords = ['tell the boss', 'tell boss', 'inform boss', 'contact admin', 'message the boss'];
+    // Include ALL variations: "tell him", "inform him", "let him know"
+    const tellBossKeywords = [
+      'tell the boss', 'tell boss', 'inform boss', 'contact admin', 'message the boss',
+      'tell him', 'inform him', 'let him know', 'let the boss know', 'notify the boss',
+      'forward to boss', 'send to boss', 'notify him'
+    ];
     const isTellBoss = tellBossKeywords.some(keyword => text.includes(keyword));
 
     console.log(`🎯 Tell boss check: isTellBoss=${isTellBoss}, hasIntern=${!!intern}`);
@@ -391,7 +396,12 @@ app.message(async ({ message, say, client }) => {
     }
 
     // SIMPLE "TELL BOSS" DETECTION - Before AI
-    const tellBossKeywords = ['tell the boss', 'tell boss', 'inform boss', 'contact admin', 'message the boss'];
+    // Include ALL variations: "tell him", "inform him", "let him know"
+    const tellBossKeywords = [
+      'tell the boss', 'tell boss', 'inform boss', 'contact admin', 'message the boss',
+      'tell him', 'inform him', 'let him know', 'let the boss know', 'notify the boss',
+      'forward to boss', 'send to boss', 'notify him'
+    ];
     const isTellBoss = tellBossKeywords.some(keyword => text.includes(keyword));
 
     if (isTellBoss && intern) {
