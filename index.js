@@ -344,7 +344,57 @@ async function handleAdminDirectMessage(message, say) {
   console.log('🎯 Admin DM received:', message.text);
 
   try {
-    // Pattern: "tell/message/inform X to Y"
+    // Pattern: Channel-wide messages (before individual intern pattern)
+    // "inform the outreach team", "tell sales to X", "ping outreach channel"
+    const channelMatch = message.text.match(/(?:tell|message|inform|notify|remind|ping)\s+(?:the\s+)?(\w+)(?:\s+team|\s+channel)?\s+(?:to\s+)?(.+)/i);
+
+    if (channelMatch) {
+      const teamName = channelMatch[1].toLowerCase();
+      const messageToSend = channelMatch[2].trim();
+
+      console.log(`📢 Channel directive: Tell "${teamName}" team: "${messageToSend}"`);
+
+      // Map team names to channel IDs
+      const teamChannelMap = {
+        'sales': process.env.SALES_CHANNEL_ID,
+        'outreach': process.env.OUTREACH_CHANNEL_ID,
+        'shitposters': process.env.SHITPOSTERS_CHANNEL_ID,
+        'shitposter': process.env.SHITPOSTERS_CHANNEL_ID,
+        'clipping': process.env.SHITPOSTERS_CHANNEL_ID,
+      };
+
+      const channelId = teamChannelMap[teamName];
+
+      if (!channelId) {
+        await say(`❌ Could not find team "${teamName}". Available teams: sales, outreach, shitposters`);
+        return;
+      }
+
+      try {
+        console.log(`📤 Posting to ${teamName} channel (${channelId}):`, messageToSend);
+
+        // Rewrite message professionally
+        const rewrittenMessage = await openaiHelper.rewriteAdminDirective(
+          messageToSend,
+          `${teamName} team`,
+          teamName
+        );
+
+        await app.client.chat.postMessage({
+          channel: channelId,
+          text: `📢 *Message from the boss:*\n\n${rewrittenMessage}`
+        });
+
+        await say(`✅ Messaged ${teamName} team in <#${channelId}>\n\n_Original:_ "${messageToSend}"\n_Sent as:_ "${rewrittenMessage}"`);
+        console.log(`✅ Successfully sent message to ${teamName} channel`);
+      } catch (postError) {
+        console.error('❌ Failed to post to channel:', postError);
+        await say(`❌ Failed to post to channel: ${postError.message}`);
+      }
+      return;
+    }
+
+    // Pattern: "tell/message/inform X to Y" (individual intern)
     const tellMatch = message.text.match(/(?:tell|message|inform|notify|ask|remind|ping)\s+(\S+)\s+(?:to\s+)?(.+)/i);
 
     if (tellMatch) {
