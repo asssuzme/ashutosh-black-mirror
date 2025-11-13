@@ -416,8 +416,7 @@ async function executeAction(action, message, say, intern, decision) {
         break;
 
       case 'send_to_admin':
-      case 'send_to_channel':
-        // AI determined message should be forwarded
+        // AI determined message should be forwarded to admin
         const userName = intern?.name || decision.sender?.name || 'Unknown User';
         const messageContent = decision.messageToForward || message.text;
 
@@ -429,6 +428,46 @@ async function executeAction(action, message, say, intern, decision) {
         });
 
         console.log(`✅ Message forwarded to admin`);
+        break;
+
+      case 'send_to_channel':
+        // AI determined admin wants to message a team/channel
+        const targetChannel = decision.targetChannel;
+        const messageToSend = decision.messageToForward || message.text;
+
+        console.log(`📢 Admin sending message to ${targetChannel} channel`);
+
+        // Map team names to channel IDs
+        const channelMap = {
+          'tech': process.env.TECH_CHANNEL_ID,
+          'sales': process.env.SALES_CHANNEL_ID,
+          'outreach': process.env.OUTREACH_CHANNEL_ID,
+          'shitposters': process.env.SHITPOSTERS_CHANNEL_ID,
+          'clipping': process.env.SHITPOSTERS_CHANNEL_ID,
+        };
+
+        const channelId = channelMap[targetChannel?.toLowerCase()];
+
+        if (!channelId) {
+          console.log(`⚠️ Unknown channel: ${targetChannel}`);
+          await say(`I'm not sure which channel "${targetChannel}" refers to. Known channels: tech, sales, outreach, shitposters.`);
+          return;
+        }
+
+        // Rewrite admin message professionally
+        const rewrittenMessage = await openaiHelper.rewriteAdminDirective(
+          messageToSend,
+          'Team',
+          targetChannel
+        );
+
+        await app.client.chat.postMessage({
+          channel: channelId,
+          text: `📢 *Message from the boss:*\n\n${rewrittenMessage}`
+        });
+
+        await say(`✅ Message sent to ${targetChannel} channel!`);
+        console.log(`✅ Message sent to ${targetChannel} channel (${channelId})`);
         break;
 
       default:

@@ -118,7 +118,7 @@ Return JSON with this structure:
   "response": "your message back to admin",
   "action": "send_to_channel"|"assign_tasks"|"status_report"|null,
   "messageToForward": "if forwarding, the cleaned message to send",
-  "targetChannel": "if messaging a team, which team: sales|outreach|shitposters",
+  "targetChannel": "if messaging a team, which team: tech|sales|outreach|shitposters|clipping",
   "targetUser": "if messaging individual, their name or ID"
 }
 
@@ -127,12 +127,18 @@ Return JSON with this structure:
 - Extract WHO (team/person) and WHAT (the message) naturally from context
 - Don't require exact keywords - understand meaning
 
-**Example:**
+**Examples:**
+Admin: "inform the tech team to setup meeting with salesql"
+→ action: "send_to_channel", targetChannel: "tech", messageToForward: "setup meeting with salesql"
+
 Admin: "inform the outreach team they have a meeting at 5pm"
 → action: "send_to_channel", targetChannel: "outreach", messageToForward: "you have a meeting at 5pm"
 
 Admin: "tell ashutosh he did great work today"
 → action: "send_to_channel", targetUser: "ashutosh", messageToForward: "you did great work today"
+
+Admin: "tell outreach to sleep well"
+→ action: "send_to_channel", targetChannel: "outreach", messageToForward: "sleep well"
 `
       },
       {
