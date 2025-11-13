@@ -446,6 +446,32 @@ function buildContextPrompt(params) {
 
   prompt += `---\n\n`;
 
+  // THREAD CONTEXT (CRITICAL for understanding references like "this", "it", "the meeting")
+  if (conversationContext?.history?.threadContext?.length > 0) {
+    prompt += `# 🧵 THREAD CONVERSATION (MOST IMPORTANT FOR CONTEXT)\n\n`;
+    prompt += `**This message is part of a thread. Here's the FULL thread conversation:**\n\n`;
+
+    conversationContext.history.threadContext.forEach((msg, idx) => {
+      const time = new Date(msg.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      prompt += `${idx + 1}. [${time}] **${msg.userName}:** "${msg.message}"\n`;
+      if (msg.botResponse) {
+        prompt += `   → **You (AI Boss) responded:** "${msg.botResponse}"\n`;
+      }
+      if (msg.actionsTaken && msg.actionsTaken.length > 0) {
+        prompt += `   → **Actions taken:** ${msg.actionsTaken.join(', ')}\n`;
+      }
+      prompt += `\n`;
+    });
+
+    prompt += `**IMPORTANT:** The current message is a reply in this thread. Use the thread context to understand:\n`;
+    prompt += `- What "this", "it", "the meeting", etc. refer to\n`;
+    prompt += `- What was discussed before\n`;
+    prompt += `- What the sender is responding to\n`;
+    prompt += `- Any pending questions or requests\n\n`;
+
+    prompt += `---\n\n`;
+  }
+
   // Channel context
   if (conversationContext?.history?.channelContext?.length > 0) {
     prompt += `# RECENT CHANNEL ACTIVITY\n\n`;
@@ -493,12 +519,26 @@ function buildContextPrompt(params) {
   // Decision task
   prompt += `# YOUR TASK\n\n`;
   prompt += `Analyze this message using ALL the context above.\n\n`;
+
+  prompt += `**CRITICAL: If this is a thread reply, use the thread context FIRST:**\n`;
+  prompt += `- Read the FULL thread conversation above\n`;
+  prompt += `- Understand what "this", "it", "that", etc. refer to based on the thread\n`;
+  prompt += `- Don't ask for clarification if the thread context makes it clear\n`;
+  prompt += `- References like "the meeting" = the meeting mentioned in the thread\n\n`;
+
   prompt += `Consider:\n`;
   prompt += `1. What is the sender's INTENT? (understand meaning, not just words)\n`;
-  prompt += `2. Does their conversation history provide relevant context?\n`;
-  prompt += `3. Are there similar past interactions that inform how to respond?\n`;
-  prompt += `4. Based on time of day, their status, and history - what's appropriate?\n`;
-  prompt += `5. Should you respond, stay silent, or take action?\n\n`;
+  prompt += `2. If in a thread, what are they responding to? What do pronouns refer to?\n`;
+  prompt += `3. Does their conversation history provide relevant context?\n`;
+  prompt += `4. Are there similar past interactions that inform how to respond?\n`;
+  prompt += `5. Based on time of day, their status, and history - what's appropriate?\n`;
+  prompt += `6. Should you respond, stay silent, or take action?\n\n`;
+
+  prompt += `**Example of good thread understanding:**\n`;
+  prompt += `Thread message 1: "Meeting at 7 PM with sales team"\n`;
+  prompt += `Thread message 2: "can we do this at 6:30?"\n`;
+  prompt += `→ "this" clearly refers to the 7 PM meeting. Respond: "Sure, I'll update the meeting to 6:30 PM."\n`;
+  prompt += `→ DON'T ask "which meeting?" or "AM or PM?" - it's obvious from context!\n\n`;
 
   prompt += `Return your decision as JSON.`;
 
