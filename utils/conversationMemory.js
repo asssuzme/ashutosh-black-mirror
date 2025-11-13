@@ -1,28 +1,31 @@
 /**
- * Conversation Memory System
- * Stores ALL interactions for context-aware AI decision making
+ * Conversation Memory System V2
+ * Database-backed version using PostgreSQL and Qdrant
  *
  * Architecture:
- * - Stores every message with full context
- * - Maintains thread relationships
- * - Tracks user behavior patterns
- * - Enables semantic retrieval
- * - Supports learning over time
+ * - PostgreSQL for structured data and fast queries
+ * - Qdrant for semantic search and contextual understanding
+ * - Maintains same API as file-based version for backward compatibility
  */
 
-const fs = require('fs').promises;
-const path = require('path');
-
-const MEMORY_DIR = path.join(__dirname, '..', 'memory');
-const CONVERSATIONS_FILE = path.join(MEMORY_DIR, 'conversations.jsonl');
-const CONTEXT_INDEX_FILE = path.join(MEMORY_DIR, 'context_index.json');
+const postgres = require('../database/postgres');
+const qdrant = require('../database/qdrant');
 
 /**
  * Store a conversation turn (message + bot response)
+ * Now stores in both PostgreSQL and Qdrant for semantic search
  */
 async function storeConversation(data) {
-  const entry = {
-    timestamp: new Date().toISOString(),
+  const timestamp = new Date();
+
+  // Get intern ID from Slack ID if available
+  let internId = null;
+  if (data.userId) {
+    const intern = await postgres.getInternBySlackId(data.userId);
+    internId = intern?.id || null;
+  }
+
+  const conversationData = {
     messageId: data.messageId || data.ts,
     threadId: data.threadId || data.thread_ts || null,
     channelId: data.channelId,
@@ -30,131 +33,131 @@ async function storeConversation(data) {
     userId: data.userId,
     userName: data.userName,
     userRole: data.userRole || null,
-
-    // Message content
+    internId: internId,
     message: data.message,
-    messageType: data.messageType || 'text', // text, file, reaction, etc
-
-    // Bot analysis
+    messageType: data.messageType || 'text',
     intent: data.intent || null,
     aiDecision: data.aiDecision || null,
     botResponse: data.botResponse || null,
     actionsTaken: data.actionsTaken || [],
-
-    // Context
-    timeOfDay: new Date().getHours(),
-    dayOfWeek: new Date().getDay(),
+    timeOfDay: timestamp.getHours(),
+    dayOfWeek: timestamp.getDay(),
     isFirstMessageOfDay: data.isFirstMessageOfDay || false,
-
-    // Metadata
     sentiment: data.sentiment || null,
     urgency: data.urgency || null,
-    tags: data.tags || []
+    tags: data.tags || [],
+    embeddingId: data.messageId || data.ts,
+    timestamp: timestamp
   };
 
-  // Append to JSONL file (one line per conversation)
-  await fs.appendFile(CONVERSATIONS_FILE, JSON.stringify(entry) + '\n');
+  // Store in PostgreSQL
+  const dbEntry = await postgres.storeConversation(conversationData);
+
+  // Store embedding in Qdrant (async - don't wait)
+  qdrant.storeConversationEmbedding(conversationData).catch(error => {
+    console.error('⚠️  Failed to store embedding:', error);
+  });
 
   // Update context index
-  await updateContextIndex(entry);
+  await updateContextIndex({
+    userId: data.userId,
+    channelId: data.channelId,
+    threadId: conversationData.threadId
+  });
 
-  return entry;
+  return {
+    timestamp: dbEntry.timestamp,
+    messageId: dbEntry.message_id,
+    threadId: dbEntry.thread_id,
+    channelId: dbEntry.channel_id,
+    channelName: dbEntry.channel_name,
+    userId: dbEntry.user_id,
+    userName: dbEntry.user_name,
+    userRole: dbEntry.user_role,
+    message: dbEntry.message,
+    messageType: dbEntry.message_type,
+    intent: dbEntry.intent,
+    aiDecision: dbEntry.ai_decision,
+    botResponse: dbEntry.bot_response,
+    actionsTaken: dbEntry.actions_taken,
+    timeOfDay: dbEntry.time_of_day,
+    dayOfWeek: dbEntry.day_of_week,
+    isFirstMessageOfDay: dbEntry.is_first_message_of_day,
+    sentiment: dbEntry.sentiment,
+    urgency: dbEntry.urgency,
+    tags: dbEntry.tags
+  };
 }
 
 /**
  * Get recent conversation history for a user
  */
 async function getUserConversationHistory(userId, limit = 20) {
-  try {
-    const content = await fs.readFile(CONVERSATIONS_FILE, 'utf8');
-    const lines = content.trim().split('\n').filter(line => line);
+  const rows = await postgres.getUserConversationHistory(userId, limit);
 
-    const userConversations = [];
-
-    // Read from end (most recent first)
-    for (let i = lines.length - 1; i >= 0 && userConversations.length < limit; i--) {
-      try {
-        const entry = JSON.parse(lines[i]);
-        if (entry.userId === userId) {
-          userConversations.push(entry);
-        }
-      } catch (e) {
-        // Skip malformed lines
-        continue;
-      }
-    }
-
-    return userConversations.reverse(); // Return chronological order
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return []; // File doesn't exist yet
-    }
-    throw error;
-  }
+  return rows.map(row => ({
+    timestamp: row.timestamp,
+    messageId: row.message_id,
+    threadId: row.thread_id,
+    channelId: row.channel_id,
+    channelName: row.channel_name,
+    userId: row.user_id,
+    userName: row.user_name,
+    userRole: row.user_role,
+    message: row.message,
+    messageType: row.message_type,
+    intent: row.intent,
+    aiDecision: row.ai_decision,
+    botResponse: row.bot_response,
+    actionsTaken: row.actions_taken,
+    timeOfDay: row.time_of_day,
+    dayOfWeek: row.day_of_week,
+    isFirstMessageOfDay: row.is_first_message_of_day,
+    sentiment: row.sentiment,
+    urgency: row.urgency,
+    tags: row.tags
+  }));
 }
 
 /**
  * Get conversation history for a specific channel
  */
 async function getChannelConversationHistory(channelId, limit = 50) {
-  try {
-    const content = await fs.readFile(CONVERSATIONS_FILE, 'utf8');
-    const lines = content.trim().split('\n').filter(line => line);
+  const rows = await postgres.getChannelConversationHistory(channelId, limit);
 
-    const channelConversations = [];
-
-    for (let i = lines.length - 1; i >= 0 && channelConversations.length < limit; i--) {
-      try {
-        const entry = JSON.parse(lines[i]);
-        if (entry.channelId === channelId) {
-          channelConversations.push(entry);
-        }
-      } catch (e) {
-        continue;
-      }
-    }
-
-    return channelConversations.reverse();
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return [];
-    }
-    throw error;
-  }
+  return rows.map(row => ({
+    timestamp: row.timestamp,
+    messageId: row.message_id,
+    userId: row.user_id,
+    userName: row.user_name,
+    message: row.message,
+    botResponse: row.bot_response,
+    intent: row.intent,
+    actionsTaken: row.actions_taken
+  }));
 }
 
 /**
  * Get thread conversation history
  */
 async function getThreadHistory(threadId) {
-  try {
-    const content = await fs.readFile(CONVERSATIONS_FILE, 'utf8');
-    const lines = content.trim().split('\n').filter(line => line);
+  const rows = await postgres.getThreadHistory(threadId);
 
-    const threadMessages = [];
-
-    for (const line of lines) {
-      try {
-        const entry = JSON.parse(line);
-        if (entry.threadId === threadId || entry.messageId === threadId) {
-          threadMessages.push(entry);
-        }
-      } catch (e) {
-        continue;
-      }
-    }
-
-    return threadMessages;
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return [];
-    }
-    throw error;
-  }
+  return rows.map(row => ({
+    timestamp: row.timestamp,
+    messageId: row.message_id,
+    userId: row.user_id,
+    userName: row.user_name,
+    message: row.message,
+    botResponse: row.bot_response,
+    intent: row.intent,
+    actionsTaken: row.actions_taken
+  }));
 }
 
 /**
  * Build rich context for AI decision making
+ * Now includes semantic search for truly intelligent context
  */
 async function buildContext(params) {
   const { userId, channelId, threadId, includeHistory = true } = params;
@@ -168,19 +171,34 @@ async function buildContext(params) {
   };
 
   if (includeHistory) {
-    // Get user's recent conversations
-    context.history.userConversations = await getUserConversationHistory(userId, 10);
+    // Get user's recent conversations from PostgreSQL
+    const userConversations = await getUserConversationHistory(userId, 10);
+    context.history.userConversations = userConversations;
 
-    // Get channel context
-    context.history.channelContext = await getChannelConversationHistory(channelId, 20);
+    // Get channel context from PostgreSQL
+    const channelContext = await getChannelConversationHistory(channelId, 20);
+    context.history.channelContext = channelContext;
 
     // Get thread context if applicable
     if (threadId) {
-      context.history.threadContext = await getThreadHistory(threadId);
+      const threadContext = await getThreadHistory(threadId);
+      context.history.threadContext = threadContext;
     }
 
     // Analyze patterns
-    context.patterns = analyzePatterns(context.history.userConversations);
+    context.patterns = analyzePatterns(userConversations);
+
+    // NEW: Get semantic context from Qdrant
+    // This finds semantically similar past conversations for true context awareness
+    if (params.currentMessage) {
+      const semanticContext = await qdrant.getSemanticContext(
+        params.currentMessage,
+        userId,
+        channelId,
+        5
+      );
+      context.semanticContext = semanticContext;
+    }
   }
 
   return context;
@@ -188,6 +206,7 @@ async function buildContext(params) {
 
 /**
  * Analyze user behavior patterns
+ * Same as before but works with database data
  */
 function analyzePatterns(conversations) {
   if (!conversations || conversations.length === 0) {
@@ -234,143 +253,103 @@ function analyzePatterns(conversations) {
  * Update context index for fast lookups
  */
 async function updateContextIndex(entry) {
-  let index = {};
-
-  try {
-    const content = await fs.readFile(CONTEXT_INDEX_FILE, 'utf8');
-    index = JSON.parse(content);
-  } catch (error) {
-    // File doesn't exist or is malformed, start fresh
-    index = {
-      users: {},
-      channels: {},
-      threads: {},
-      lastUpdated: null
-    };
-  }
+  const updates = [];
 
   // Update user index
-  if (!index.users[entry.userId]) {
-    index.users[entry.userId] = {
-      userName: entry.userName,
-      totalMessages: 0,
-      lastSeen: null,
-      channels: []
-    };
-  }
-
-  index.users[entry.userId].totalMessages++;
-  index.users[entry.userId].lastSeen = entry.timestamp;
-
-  if (!index.users[entry.userId].channels.includes(entry.channelId)) {
-    index.users[entry.userId].channels.push(entry.channelId);
+  if (entry.userId) {
+    updates.push(
+      postgres.updateContextIndex('user', entry.userId, {
+        userName: entry.userName,
+        channels: [entry.channelId]
+      })
+    );
   }
 
   // Update channel index
-  if (!index.channels[entry.channelId]) {
-    index.channels[entry.channelId] = {
-      channelName: entry.channelName,
-      totalMessages: 0,
-      activeUsers: []
-    };
-  }
-
-  index.channels[entry.channelId].totalMessages++;
-
-  if (!index.channels[entry.channelId].activeUsers.includes(entry.userId)) {
-    index.channels[entry.channelId].activeUsers.push(entry.userId);
+  if (entry.channelId) {
+    updates.push(
+      postgres.updateContextIndex('channel', entry.channelId, {
+        channelName: entry.channelName,
+        users: [entry.userId]
+      })
+    );
   }
 
   // Update thread index
   if (entry.threadId) {
-    if (!index.threads[entry.threadId]) {
-      index.threads[entry.threadId] = {
+    updates.push(
+      postgres.updateContextIndex('thread', entry.threadId, {
         channelId: entry.channelId,
-        participants: [],
-        messageCount: 0
-      };
-    }
-
-    index.threads[entry.threadId].messageCount++;
-
-    if (!index.threads[entry.threadId].participants.includes(entry.userId)) {
-      index.threads[entry.threadId].participants.push(entry.userId);
-    }
+        participants: [entry.userId]
+      })
+    );
   }
 
-  index.lastUpdated = entry.timestamp;
-
-  // Write back to file
-  await fs.writeFile(CONTEXT_INDEX_FILE, JSON.stringify(index, null, 2));
+  await Promise.all(updates);
 }
 
 /**
- * Search conversations by query (simple text search for now)
- * Can be upgraded to vector search later
+ * Search conversations by query
+ * Uses PostgreSQL full-text search + Qdrant semantic search
  */
 async function searchConversations(query, limit = 10) {
+  // Try semantic search first (more intelligent)
   try {
-    const content = await fs.readFile(CONVERSATIONS_FILE, 'utf8');
-    const lines = content.trim().split('\n').filter(line => line);
+    const semanticResults = await qdrant.searchSimilarConversations(query, {}, limit);
 
-    const results = [];
-    const queryLower = query.toLowerCase();
-
-    for (let i = lines.length - 1; i >= 0 && results.length < limit; i--) {
-      try {
-        const entry = JSON.parse(lines[i]);
-
-        if (entry.message.toLowerCase().includes(queryLower) ||
-            (entry.botResponse && entry.botResponse.toLowerCase().includes(queryLower))) {
-          results.push(entry);
-        }
-      } catch (e) {
-        continue;
-      }
+    if (semanticResults.length > 0) {
+      return semanticResults.map(result => ({
+        timestamp: new Date(result.timestamp),
+        messageId: result.message_id,
+        userId: result.user_id,
+        userName: result.user_name,
+        channelName: result.channel_name,
+        message: result.message_text,
+        botResponse: result.bot_response,
+        intent: result.intent,
+        score: result.score
+      }));
     }
-
-    return results;
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      return [];
-    }
-    throw error;
+    console.error('⚠️  Semantic search failed, falling back to text search:', error);
   }
+
+  // Fallback to PostgreSQL text search
+  const rows = await postgres.searchConversations(query, limit);
+
+  return rows.map(row => ({
+    timestamp: row.timestamp,
+    messageId: row.message_id,
+    userId: row.user_id,
+    userName: row.user_name,
+    channelName: row.channel_name,
+    message: row.message,
+    botResponse: row.bot_response,
+    intent: row.intent
+  }));
 }
 
 /**
  * Get statistics about conversation memory
  */
 async function getMemoryStats() {
-  try {
-    const [conversationContent, indexContent] = await Promise.all([
-      fs.readFile(CONVERSATIONS_FILE, 'utf8'),
-      fs.readFile(CONTEXT_INDEX_FILE, 'utf8')
-    ]);
+  const postgresStats = await postgres.getMemoryStats();
+  const qdrantInfo = await qdrant.getCollectionInfo();
 
-    const lines = conversationContent.trim().split('\n').filter(line => line);
-    const index = JSON.parse(indexContent);
-
-    return {
-      totalConversations: lines.length,
-      totalUsers: Object.keys(index.users || {}).length,
-      totalChannels: Object.keys(index.channels || {}).length,
-      totalThreads: Object.keys(index.threads || {}).length,
-      lastUpdated: index.lastUpdated,
-      oldestConversation: lines.length > 0 ? JSON.parse(lines[0]).timestamp : null,
-      newestConversation: lines.length > 0 ? JSON.parse(lines[lines.length - 1]).timestamp : null
-    };
-  } catch (error) {
-    return {
-      totalConversations: 0,
-      totalUsers: 0,
-      totalChannels: 0,
-      totalThreads: 0,
-      lastUpdated: null,
-      oldestConversation: null,
-      newestConversation: null
-    };
-  }
+  return {
+    totalConversations: postgresStats.totalConversations,
+    totalUsers: postgresStats.totalUsers,
+    totalChannels: postgresStats.totalChannels,
+    totalThreads: postgresStats.totalThreads,
+    lastUpdated: postgresStats.newestConversation,
+    oldestConversation: postgresStats.oldestConversation,
+    newestConversation: postgresStats.newestConversation,
+    vectorDatabase: qdrantInfo ? {
+      totalVectors: qdrantInfo.pointsCount,
+      indexedVectors: qdrantInfo.indexedVectorsCount,
+      status: qdrantInfo.status
+    } : null
+  };
 }
 
 module.exports = {

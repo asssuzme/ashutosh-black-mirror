@@ -17,9 +17,23 @@ const EMBEDDING_DIMENSIONS = 1536; // text-embedding-3-small
  */
 function getQdrantClient() {
   if (!qdrantClient) {
-    qdrantClient = new QdrantClient({
-      url: process.env.QDRANT_URL || 'http://localhost:6333',
-    });
+    const qdrantUrl = process.env.QDRANT_URL || process.env.QDRANT_CLOUD_URL;
+
+    if (!qdrantUrl) {
+      console.log('⚠️  QDRANT_URL not configured - vector search disabled');
+      return null;
+    }
+
+    const config = {
+      url: qdrantUrl
+    };
+
+    // Add API key if using Qdrant Cloud
+    if (process.env.QDRANT_API_KEY) {
+      config.apiKey = process.env.QDRANT_API_KEY;
+    }
+
+    qdrantClient = new QdrantClient(config);
   }
   return qdrantClient;
 }
@@ -44,6 +58,11 @@ function getOpenAIClient() {
  */
 async function initializeCollection() {
   const client = getQdrantClient();
+
+  if (!client) {
+    console.log('ℹ️  Qdrant not configured - skipping vector database setup');
+    return;
+  }
 
   try {
     // Check if collection exists
@@ -145,6 +164,11 @@ async function generateEmbeddingsBatch(texts) {
  */
 async function storeConversationEmbedding(conversationData) {
   const client = getQdrantClient();
+
+  if (!client) {
+    // Qdrant not configured - skip embedding storage
+    return null;
+  }
 
   const {
     messageId,
@@ -329,6 +353,17 @@ async function searchSimilarConversations(queryText, filters = {}, limit = 5) {
  * Returns semantically similar past conversations for context
  */
 async function getSemanticContext(messageText, userId, channelId, limit = 5) {
+  const client = getQdrantClient();
+
+  if (!client) {
+    // Qdrant not available - return empty context
+    return {
+      userContext: [],
+      channelContext: [],
+      relevantPastInteractions: false
+    };
+  }
+
   try {
     // Search for similar conversations from this user
     const userContext = await searchSimilarConversations(

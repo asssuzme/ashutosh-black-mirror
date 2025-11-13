@@ -9,20 +9,39 @@ let pool = null;
 
 /**
  * Initialize PostgreSQL connection pool
+ * Supports both DATABASE_URL (Replit) and individual connection params
  */
 function initializePool() {
   if (pool) return pool;
 
-  const config = {
-    host: process.env.POSTGRES_HOST || 'localhost',
-    port: parseInt(process.env.POSTGRES_PORT || '5432'),
-    database: process.env.POSTGRES_DB || 'aiboss',
-    user: process.env.POSTGRES_USER || 'aiboss',
-    password: process.env.POSTGRES_PASSWORD,
-    max: 20, // Maximum number of clients in pool
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-  };
+  let config;
+
+  // Replit provides DATABASE_URL automatically
+  if (process.env.DATABASE_URL) {
+    console.log('🔗 Using DATABASE_URL from Replit');
+    config = {
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false // Replit uses self-signed certs
+      },
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    };
+  } else {
+    // Fallback to individual connection parameters (Docker/local)
+    console.log('🔗 Using individual connection parameters');
+    config = {
+      host: process.env.POSTGRES_HOST || 'localhost',
+      port: parseInt(process.env.POSTGRES_PORT || '5432'),
+      database: process.env.POSTGRES_DB || 'aiboss',
+      user: process.env.POSTGRES_USER || 'aiboss',
+      password: process.env.POSTGRES_PASSWORD,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    };
+  }
 
   pool = new Pool(config);
 
