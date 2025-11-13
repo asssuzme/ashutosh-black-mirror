@@ -261,7 +261,7 @@ async function processMessageWithAI({ message, say, client, isMention }) {
       slackHelper.getUserInfo(app, message.user),
       getChannelInfo(client, message.channel),
       memory.getActiveInterns(),
-      memory.getRules()
+      memory.loadRules()
     ]);
 
     console.log(`👤 User: ${sender?.real_name || 'Unknown'} (${isAdmin ? 'ADMIN' : intern ? 'INTERN' : 'UNKNOWN'})`);
