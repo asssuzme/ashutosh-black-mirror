@@ -31,6 +31,7 @@ const learningEngine = require('./systems/learningEngine');
 const workflowEngine = require('./systems/workflowEngine');
 const approvalQueue = require('./systems/approvalQueue');
 const proactiveManager = require('./systems/proactiveManager');
+const reinforcementLearning = require('./systems/reinforcementLearning');
 
 // Ensure memory directory exists (for backward compatibility during migration)
 const memoryDir = path.join(__dirname, 'memory');
@@ -96,7 +97,7 @@ async function initialize() {
     setupCronJobs();
 
     // Send startup message to admin
-    await sendAdminMessage('✅ AI Boss 2.0 is online (Pure AI Mode)!\n\n✨ Now powered by true intelligence - no keyword shortcuts, pure contextual understanding.\n\n🤖 Autonomous systems active:\n• Learning Engine - Pattern analysis\n• Workflow Engine - Automated actions\n• Approval Queue - Admin oversight\n• Proactive Manager - Continuous monitoring');
+    await sendAdminMessage('✅ AI Boss 2.0 is online (Pure AI Mode)!\n\n✨ Now powered by true intelligence - no keyword shortcuts, pure contextual understanding.\n\n🤖 Autonomous systems active:\n• Learning Engine - Pattern analysis\n• Workflow Engine - Automated actions\n• Approval Queue - Admin oversight\n• Proactive Manager - Continuous monitoring\n• Reinforcement Learning - Self-optimization');
   } catch (error) {
     console.error('Error initializing bot:', error);
     throw error;
@@ -335,6 +336,36 @@ async function processMessageWithAI({ message, say, client, isMention }) {
 
         return; // Don't process as normal message
       }
+
+      // Check for learning report command
+      if (message.text.toLowerCase().includes('learning report') || message.text.toLowerCase().includes('rl report')) {
+        console.log('📊 Admin requesting learning report');
+        const report = await reinforcementLearning.generateLearningReport();
+
+        let reportMsg = `🧠 **Reinforcement Learning Report**\n\n`;
+        reportMsg += `**Actions Tracked:** ${report.totalActions} total (${report.actionsLast7Days} in last 7 days)\n\n`;
+
+        reportMsg += `**Current Decision Weights:**\n`;
+        Object.entries(report.decisionWeights).forEach(([key, value]) => {
+          reportMsg += `• ${key}: ${(value * 100).toFixed(0)}%\n`;
+        });
+
+        reportMsg += `\n**Success Rates:**\n`;
+        Object.entries(report.actionSuccessRates).forEach(([type, stats]) => {
+          reportMsg += `• ${type}: ${stats.successRate} (${stats.total} samples, avg reward: ${stats.averageReward})\n`;
+        });
+
+        if (report.learningInsights.length > 0) {
+          reportMsg += `\n**Learning Insights:**\n`;
+          report.learningInsights.forEach(insight => {
+            const emoji = insight.type === 'success' ? '✅' : insight.type === 'needs_improvement' ? '⚠️' : '⏱️';
+            reportMsg += `${emoji} ${insight.message}\n`;
+          });
+        }
+
+        await say(reportMsg);
+        return; // Don't process as normal message
+      }
     }
 
     // Gather full context for AI
@@ -514,13 +545,29 @@ async function executeAction(action, message, say, intern, decision) {
 
         await say(`📋 *New tasks assigned to you:*\n\n${taskList}\n\nLet me know when you complete them!`);
 
-        // Start task monitoring workflow for each task
+        // Track action for reinforcement learning
         for (const task of tasks) {
+          const actionId = await reinforcementLearning.trackAction({
+            type: 'task_assignment',
+            userId: message.user,
+            context: {
+              internName: intern.name,
+              taskTitle: task.title,
+              priority: task.priority
+            },
+            parameters: {
+              estimatedTime: task.estimatedTime,
+              assignedAt: new Date()
+            }
+          });
+
+          // Start task monitoring workflow
           await workflowEngine.startWorkflow('task_assigned', {
             userId: message.user,
             internName: intern.name,
             taskTitle: task.title,
-            since: new Date()
+            since: new Date(),
+            rlActionId: actionId  // Pass to workflow for outcome tracking
           });
         }
         console.log(`✅ Started monitoring workflows for ${tasks.length} tasks`);
