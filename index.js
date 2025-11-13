@@ -86,8 +86,9 @@ async function sendAdminMessage(text, blocks = null) {
 
 /**
  * Handle app mentions (when someone @mentions the bot)
+ * Use same smart detection as regular messages
  */
-app.event('app_mention', async ({ event, say }) => {
+app.event('app_mention', async ({ event, say, client }) => {
   try {
     console.log('🔔 Bot mentioned:', {
       user: event.user,
@@ -95,8 +96,128 @@ app.event('app_mention', async ({ event, say }) => {
       channel: event.channel
     });
 
-    // Treat all mentions as INTERN_TO_BOT
-    await handleInternCommand(event, say);
+    // Get intern info for context
+    const intern = await memory.getIntern(event.user);
+    const text = (event.text || '').toLowerCase();
+
+    console.log(`🔍 Mention context: user=${event.user}, intern=${intern ? intern.name : 'NOT FOUND'}`);
+
+    // Remove the @mention from text for cleaner processing
+    const cleanText = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
+
+    console.log(`📝 Original text: "${event.text}"`);
+    console.log(`📝 Clean text: "${cleanText}"`);
+    console.log(`📝 Lowercase text: "${text}"`);
+
+    // SIMPLE "TELL BOSS" DETECTION - Before AI
+    const tellBossKeywords = ['tell the boss', 'tell boss', 'inform boss', 'contact admin', 'message the boss'];
+    const isTellBoss = tellBossKeywords.some(keyword => text.includes(keyword));
+
+    console.log(`🎯 Tell boss check: isTellBoss=${isTellBoss}, hasIntern=${!!intern}`);
+
+    if (isTellBoss) {
+      // Get user info from Slack if intern not found
+      const userName = intern ? intern.name : (await slackHelper.getUserInfo(app, event.user))?.real_name || 'Unknown User';
+
+      console.log(`📢 ${userName} wants to tell the boss something (via mention)`);
+
+      await app.client.chat.postMessage({
+        channel: process.env.ADMIN_DM_CHANNEL_ID || ADMIN_USER_ID,
+        text: `🚨 *Message from ${userName}:*\n\n"${cleanText}"\n\n_Sent from <#${event.channel}>_\n_User ID: ${event.user}_`
+      });
+
+      await say(`✅ I've forwarded your message to the boss. They'll get back to you soon!`);
+      console.log(`✅ Forwarded mention message from ${userName} to admin`);
+      return; // Done
+    }
+
+    // SIMPLE CHECK-IN DETECTION
+    const checkInKeywords = ['log in', 'login', 'check in', 'checking in', 'here', 'present', 'attendance', 'mark my attendance'];
+    const isCheckIn = checkInKeywords.some(keyword => text.includes(keyword));
+
+    if (isCheckIn && intern) {
+      console.log(`✅ INSTANT CHECK-IN detected for ${intern.name} (via mention)`);
+
+      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const hour = now.getHours();
+      const minute = now.getMinutes();
+      const isLate = (hour > 10) || (hour === 10 && minute > 30);
+
+      await memory.markAttendance(event.user, today);
+
+      const checkInMsg = await openaiHelper.generateCheckInResponse(intern, isLate);
+
+      await app.client.chat.postMessage({
+        channel: intern.channelId,
+        text: checkInMsg
+      });
+
+      console.log(`✅ ${intern.name} checked in via mention at ${now.toLocaleTimeString('en-IN')} ${isLate ? '(LATE)' : ''}`);
+
+      // Store in conversation memory
+      await conversationMemory.storeConversation({
+        messageId: event.ts,
+        channelId: event.channel,
+        channelName: intern.channelId,
+        userId: event.user,
+        userName: intern.name,
+        userRole: intern.role,
+        message: cleanText,
+        intent: 'check_in',
+        botResponse: checkInMsg,
+        actionsTaken: ['login'],
+        tags: ['check_in', 'mention', isLate ? 'late' : 'on_time']
+      });
+
+      return; // Done
+    }
+
+    // Otherwise use AI decision engine
+    console.log('🧠 Using AI decision for mention (no quick match)');
+
+    // Create a message-like object for the AI
+    const messageForAI = {
+      ...event,
+      text: cleanText, // Use cleaned text without @mention
+      channel_type: event.channel_type || 'channel'
+    };
+
+    // Pass through to main handler logic (AI decision)
+    const [sender, channelInfo, recentMessages, allInterns, rules] = await Promise.all([
+      slackHelper.getUserInfo(app, event.user),
+      getChannelInfo(client, event.channel),
+      getRecentMessages(client, event.channel, 5),
+      memory.getActiveInterns(),
+      memory.getRules()
+    ]);
+
+    const decision = await aiDecisionEngine.analyzeMessage({
+      message: messageForAI,
+      sender: {
+        id: event.user,
+        name: sender?.real_name || sender?.name || 'Unknown'
+      },
+      internProfile: intern,
+      channelInfo,
+      recentMessages,
+      allInterns,
+      rules,
+      isAdmin: false
+    });
+
+    console.log('🤖 AI Decision (mention):', decision);
+
+    if (decision.shouldRespond && decision.response) {
+      await say(decision.response);
+    }
+
+    if (decision.action) {
+      await executeAction(decision.action, messageForAI, say, intern);
+    }
+
+    await logInteraction(messageForAI, decision, intern);
+
   } catch (error) {
     console.error('❌ Error handling mention:', error);
     console.error('Stack:', error.stack);
