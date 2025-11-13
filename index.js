@@ -552,6 +552,44 @@ async function generateDailySummary() {
     await app.start();
     console.log('⚡️ Bolt app is running!');
     await initialize();
+
+    // Start health check server
+    const http = require('http');
+    const PORT = process.env.PORT || 3000;
+    const healthServer = http.createServer((req, res) => {
+      if (req.url === '/health' || req.url === '/') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: 'healthy',
+          bot: 'AI Boss 2.0',
+          mode: 'Pure AI',
+          database: 'PostgreSQL',
+          uptime: process.uptime(),
+          timestamp: new Date().toISOString()
+        }));
+      } else {
+        res.writeHead(404);
+        res.end('Not Found');
+      }
+    });
+
+    healthServer.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`⚠️ Port ${PORT} is in use, trying alternative port...`);
+        const altPort = PORT + Math.floor(Math.random() * 1000);
+        healthServer.listen(altPort, 'localhost', () => {
+          console.log(`🏥 Health check server running on localhost:${altPort}`);
+          console.log('💚 Bot is healthy and ready');
+        });
+      } else {
+        console.error('Health server error:', err);
+      }
+    });
+
+    healthServer.listen(PORT, 'localhost', () => {
+      console.log(`🏥 Health check server running on localhost:${PORT}`);
+      console.log('💚 Bot is healthy and ready');
+    });
   } catch (error) {
     console.error('❌ Failed to start app:', error);
     process.exit(1);
