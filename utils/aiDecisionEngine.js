@@ -291,10 +291,20 @@ But DON'T rely on keywords alone - UNDERSTAND CONTEXT!
 
 **Important:**
 - Don't respond to EVERY message - know when to stay silent
+- **HOWEVER: In threads where you recently participated, be MORE responsive**
+  - If someone replies in a thread where you just spoke, they're likely talking to YOU
+  - Don't require @mentions in active conversations
+  - If thread context shows ongoing discussion with you, ENGAGE
 - If someone directly addresses you or asks you a question, ALWAYS respond
 - Use conversation history to understand patterns and context
 - Reference past interactions naturally when relevant
 - Be helpful and proactive, but not intrusive
+
+**Thread Behavior:**
+- If this is a thread reply AND you participated in this thread recently → probably respond
+- If someone says something after you spoke → likely directed at you, respond
+- Don't make people @mention you in threads where conversation is ongoing
+- Example: Bot says "I'll reschedule", User says "yeah i meant the meeting" → Respond! They're confirming with you.
 `
       },
       {
@@ -529,16 +539,33 @@ function buildContextPrompt(params) {
   prompt += `Consider:\n`;
   prompt += `1. What is the sender's INTENT? (understand meaning, not just words)\n`;
   prompt += `2. If in a thread, what are they responding to? What do pronouns refer to?\n`;
-  prompt += `3. Does their conversation history provide relevant context?\n`;
-  prompt += `4. Are there similar past interactions that inform how to respond?\n`;
-  prompt += `5. Based on time of day, their status, and history - what's appropriate?\n`;
-  prompt += `6. Should you respond, stay silent, or take action?\n\n`;
+  prompt += `3. **Did YOU just speak in this thread?** If yes → they're likely responding to YOU\n`;
+  prompt += `4. Does their conversation history provide relevant context?\n`;
+  prompt += `5. Are there similar past interactions that inform how to respond?\n`;
+  prompt += `6. Based on time of day, their status, and history - what's appropriate?\n`;
+  prompt += `7. Should you respond, stay silent, or take action?\n\n`;
 
-  prompt += `**Example of good thread understanding:**\n`;
-  prompt += `Thread message 1: "Meeting at 7 PM with sales team"\n`;
-  prompt += `Thread message 2: "can we do this at 6:30?"\n`;
-  prompt += `→ "this" clearly refers to the 7 PM meeting. Respond: "Sure, I'll update the meeting to 6:30 PM."\n`;
-  prompt += `→ DON'T ask "which meeting?" or "AM or PM?" - it's obvious from context!\n\n`;
+  prompt += `**Examples of when to respond WITHOUT @mention:**\n\n`;
+
+  prompt += `Example 1 - Thread continuation:\n`;
+  prompt += `1. You: "Meeting at 7 PM with sales team"\n`;
+  prompt += `2. User: "can we do this at 6:30?"\n`;
+  prompt += `→ shouldRespond: TRUE (they're asking you about the meeting)\n`;
+  prompt += `→ "this" = the 7 PM meeting you mentioned\n`;
+  prompt += `→ Response: "Sure, I'll update the meeting to 6:30 PM."\n\n`;
+
+  prompt += `Example 2 - Confirmation/Follow-up:\n`;
+  prompt += `1. You: "I'll reschedule to 6:30 PM"\n`;
+  prompt += `2. User: "yeah i meant the meeting"\n`;
+  prompt += `→ shouldRespond: TRUE (they're confirming with you)\n`;
+  prompt += `→ Response: "Got it! Meeting confirmed for 6:30 PM."\n`;
+  prompt += `→ DON'T stay silent - acknowledge the confirmation!\n\n`;
+
+  prompt += `Example 3 - Not for you:\n`;
+  prompt += `1. User A: "hey did you finish the report?"\n`;
+  prompt += `2. User B: "yeah almost done"\n`;
+  prompt += `→ shouldRespond: FALSE (conversation between team members)\n`;
+  prompt += `→ Stay silent, just store for context\n\n`;
 
   prompt += `Return your decision as JSON.`;
 
