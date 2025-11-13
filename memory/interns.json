@@ -115,7 +115,35 @@
         "attendanceRate": 100,
         "lastActive": "2025-11-12T05:07:47.595Z"
       }
+    },
+    {
+      "id": "U09RZ91MFBN",
+      "name": "Ashutosh",
+      "role": "sales",
+      "slackId": "U09RZ91MFBN",
+      "channelId": "C09RL27B495",
+      "joinDate": "2025-11-13T05:51:55.661Z",
+      "active": true,
+      "attendance": {},
+      "currentTasks": [],
+      "completedTasks": [],
+      "progressUpdates": {},
+      "completionRate": 0,
+      "profile": {
+        "strengths": [],
+        "weaknesses": [],
+        "optimalWorkload": "medium",
+        "motivationStyle": "encouraging",
+        "performanceHistory": []
+      },
+      "stats": {
+        "totalTasksAssigned": 0,
+        "totalTasksCompleted": 0,
+        "averageQualityScore": 0,
+        "attendanceRate": 0,
+        "lastActive": null
+      }
     }
   ],
-  "lastUpdated": "2025-11-12T05:07:47.596Z"
+  "lastUpdated": "2025-11-13T05:51:55.661Z"
 }
