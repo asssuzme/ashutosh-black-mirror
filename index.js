@@ -26,6 +26,12 @@ const memory = require('./utils/memoryManager');
 const aiDecisionEngine = require('./utils/aiDecisionEngine');
 const conversationMemory = require('./utils/conversationMemory-v2'); // NEW database-backed version
 
+// Autonomous Systems
+const learningEngine = require('./systems/learningEngine');
+const workflowEngine = require('./systems/workflowEngine');
+const approvalQueue = require('./systems/approvalQueue');
+const proactiveManager = require('./systems/proactiveManager');
+
 // Ensure memory directory exists (for backward compatibility during migration)
 const memoryDir = path.join(__dirname, 'memory');
 if (!fs.existsSync(memoryDir)) {
@@ -79,11 +85,18 @@ async function initialize() {
     console.log('🔍 Keyword Detection: DISABLED');
     console.log('📊 PostgreSQL + Qdrant: ENABLED\n');
 
+    // Initialize autonomous systems
+    console.log('🚀 Initializing autonomous systems...');
+    workflowEngine.initialize(app, ADMIN_USER_ID);
+    approvalQueue.initialize(app, ADMIN_USER_ID);
+    proactiveManager.initialize(app, ADMIN_USER_ID);
+    console.log('✅ Autonomous systems online\n');
+
     // Set up cron jobs
     setupCronJobs();
 
     // Send startup message to admin
-    await sendAdminMessage('✅ AI Boss 2.0 is online (Pure AI Mode)!\n\n✨ Now powered by true intelligence - no keyword shortcuts, pure contextual understanding.');
+    await sendAdminMessage('✅ AI Boss 2.0 is online (Pure AI Mode)!\n\n✨ Now powered by true intelligence - no keyword shortcuts, pure contextual understanding.\n\n🤖 Autonomous systems active:\n• Learning Engine - Pattern analysis\n• Workflow Engine - Automated actions\n• Approval Queue - Admin oversight\n• Proactive Manager - Continuous monitoring');
   } catch (error) {
     console.error('Error initializing bot:', error);
     throw error;
@@ -270,6 +283,60 @@ async function processMessageWithAI({ message, say, client, isMention }) {
     const intern = await memory.getIntern(message.user);
     const isAdmin = message.user === ADMIN_USER_ID;
 
+    // Check for admin approval commands FIRST
+    if (isAdmin) {
+      const approvalMatch = message.text.match(/^(approve|reject)\s+([^\s]+)(?:\s+(.+))?$/i);
+
+      if (approvalMatch) {
+        const [_, action, approvalId, reason] = approvalMatch;
+
+        console.log(`✋ Admin ${action} command for approval ${approvalId}`);
+
+        if (action.toLowerCase() === 'approve') {
+          const result = await approvalQueue.approve(approvalId, message.user, reason);
+          if (result.success) {
+            await say(`✅ Approved: ${result.approval.context.reason || approvalId}\n\nExecuting action...`);
+          } else {
+            await say(`❌ Could not approve: ${result.error}`);
+          }
+        } else {
+          const result = await approvalQueue.reject(approvalId, message.user, reason);
+          if (result.success) {
+            await say(`❌ Rejected: ${result.approval.context.reason || approvalId}\n\nReason: ${reason || 'No reason provided'}`);
+          } else {
+            await say(`❌ Could not reject: ${result.error}`);
+          }
+        }
+
+        return; // Don't process as normal message
+      }
+
+      // Check for approval queue status command
+      if (message.text.toLowerCase().includes('pending approvals') || message.text.toLowerCase().includes('approval queue')) {
+        console.log('📋 Admin requesting approval queue status');
+        const pending = await approvalQueue.getPendingApprovals();
+
+        if (pending.length === 0) {
+          await say('✅ No pending approvals!');
+        } else {
+          let statusMsg = `📋 *Pending Approvals (${pending.length})*\n\n`;
+          pending.forEach((approval, idx) => {
+            statusMsg += `${idx + 1}. **${approval.id}**\n`;
+            statusMsg += `   Type: ${approval.type}\n`;
+            statusMsg += `   Reason: ${approval.context.reason}\n`;
+            if (approval.context.internName) {
+              statusMsg += `   For: ${approval.context.internName}\n`;
+            }
+            statusMsg += `   Requested: ${new Date(approval.requestedAt).toLocaleString('en-IN')}\n`;
+            statusMsg += `\n   Reply with: \`approve ${approval.id}\` or \`reject ${approval.id} [reason]\`\n\n`;
+          });
+          await say(statusMsg);
+        }
+
+        return; // Don't process as normal message
+      }
+    }
+
     // Gather full context for AI
     const [sender, channelInfo, allInterns, rules] = await Promise.all([
       slackHelper.getUserInfo(app, message.user),
@@ -318,6 +385,23 @@ async function processMessageWithAI({ message, say, client, isMention }) {
       action: decision.action,
       reasoning: decision.reasoning
     });
+
+    // Check for triggers that should start workflows
+    if (!isAdmin && intern) {
+      // Detect frustration/stuck patterns
+      const stuckIndicators = ['stuck', 'problem', 'issue', 'error', 'not working', 'help', 'struggling'];
+      const messageText = message.text.toLowerCase();
+      const seemsStuck = stuckIndicators.some(indicator => messageText.includes(indicator));
+
+      if (seemsStuck) {
+        console.log(`🆘 User seems stuck, starting workflow...`);
+        await workflowEngine.startWorkflow('user_stuck', {
+          userId: message.user,
+          internName: intern.name,
+          since: new Date(message.ts * 1000)
+        });
+      }
+    }
 
     // Execute AI's decision
     if (decision.shouldRespond && decision.response) {
@@ -429,6 +513,17 @@ async function executeAction(action, message, say, intern, decision) {
         ).join('\n\n');
 
         await say(`📋 *New tasks assigned to you:*\n\n${taskList}\n\nLet me know when you complete them!`);
+
+        // Start task monitoring workflow for each task
+        for (const task of tasks) {
+          await workflowEngine.startWorkflow('task_assigned', {
+            userId: message.user,
+            internName: intern.name,
+            taskTitle: task.title,
+            since: new Date()
+          });
+        }
+        console.log(`✅ Started monitoring workflows for ${tasks.length} tasks`);
         break;
 
       case 'mark_progress':
