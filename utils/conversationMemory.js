@@ -11,82 +11,100 @@
 const postgres = require('../database/postgres');
 const qdrant = require('../database/qdrant');
 
+// Fallback to old file-based memory if database not available
+const fallbackMemory = require('./conversationMemory-v1-backup');
+
 /**
  * Store a conversation turn (message + bot response)
  * Now stores in both PostgreSQL and Qdrant for semantic search
+ * Falls back to file-based if database not set up
  */
 async function storeConversation(data) {
-  const timestamp = new Date();
+  try {
+    const timestamp = new Date();
 
-  // Get intern ID from Slack ID if available
-  let internId = null;
-  if (data.userId) {
-    const intern = await postgres.getInternBySlackId(data.userId);
-    internId = intern?.id || null;
+    // Get intern ID from Slack ID if available
+    let internId = null;
+    if (data.userId) {
+      try {
+        const intern = await postgres.getInternBySlackId(data.userId);
+        internId = intern?.id || null;
+      } catch (error) {
+        // Intern not in database yet, that's okay
+      }
+    }
+
+    const conversationData = {
+      messageId: data.messageId || data.ts,
+      threadId: data.threadId || data.thread_ts || null,
+      channelId: data.channelId,
+      channelName: data.channelName || null,
+      userId: data.userId,
+      userName: data.userName,
+      userRole: data.userRole || null,
+      internId: internId,
+      message: data.message,
+      messageType: data.messageType || 'text',
+      intent: data.intent || null,
+      aiDecision: data.aiDecision || null,
+      botResponse: data.botResponse || null,
+      actionsTaken: data.actionsTaken || [],
+      timeOfDay: timestamp.getHours(),
+      dayOfWeek: timestamp.getDay(),
+      isFirstMessageOfDay: data.isFirstMessageOfDay || false,
+      sentiment: data.sentiment || null,
+      urgency: data.urgency || null,
+      tags: data.tags || [],
+      embeddingId: data.messageId || data.ts,
+      timestamp: timestamp
+    };
+
+    // Store in PostgreSQL
+    const dbEntry = await postgres.storeConversation(conversationData);
+
+    // Store embedding in Qdrant (async - don't wait)
+    qdrant.storeConversationEmbedding(conversationData).catch(error => {
+      console.error('⚠️  Failed to store embedding:', error);
+    });
+
+    // Update context index
+    try {
+      await updateContextIndex({
+        userId: data.userId,
+        channelId: data.channelId,
+        threadId: conversationData.threadId
+      });
+    } catch (error) {
+      // Context index update failed, continue anyway
+    }
+
+    return {
+      timestamp: dbEntry.timestamp,
+      messageId: dbEntry.message_id,
+      threadId: dbEntry.thread_id,
+      channelId: dbEntry.channel_id,
+      channelName: dbEntry.channel_name,
+      userId: dbEntry.user_id,
+      userName: dbEntry.user_name,
+      userRole: dbEntry.user_role,
+      message: dbEntry.message,
+      messageType: dbEntry.message_type,
+      intent: dbEntry.intent,
+      aiDecision: dbEntry.ai_decision,
+      botResponse: dbEntry.bot_response,
+      actionsTaken: dbEntry.actions_taken,
+      timeOfDay: dbEntry.time_of_day,
+      dayOfWeek: dbEntry.day_of_week,
+      isFirstMessageOfDay: dbEntry.is_first_message_of_day,
+      sentiment: dbEntry.sentiment,
+      urgency: dbEntry.urgency,
+      tags: dbEntry.tags
+    };
+  } catch (error) {
+    console.error('⚠️  Database not available, using file-based fallback:', error.message);
+    // Fallback to file-based memory
+    return fallbackMemory.storeConversation(data);
   }
-
-  const conversationData = {
-    messageId: data.messageId || data.ts,
-    threadId: data.threadId || data.thread_ts || null,
-    channelId: data.channelId,
-    channelName: data.channelName || null,
-    userId: data.userId,
-    userName: data.userName,
-    userRole: data.userRole || null,
-    internId: internId,
-    message: data.message,
-    messageType: data.messageType || 'text',
-    intent: data.intent || null,
-    aiDecision: data.aiDecision || null,
-    botResponse: data.botResponse || null,
-    actionsTaken: data.actionsTaken || [],
-    timeOfDay: timestamp.getHours(),
-    dayOfWeek: timestamp.getDay(),
-    isFirstMessageOfDay: data.isFirstMessageOfDay || false,
-    sentiment: data.sentiment || null,
-    urgency: data.urgency || null,
-    tags: data.tags || [],
-    embeddingId: data.messageId || data.ts,
-    timestamp: timestamp
-  };
-
-  // Store in PostgreSQL
-  const dbEntry = await postgres.storeConversation(conversationData);
-
-  // Store embedding in Qdrant (async - don't wait)
-  qdrant.storeConversationEmbedding(conversationData).catch(error => {
-    console.error('⚠️  Failed to store embedding:', error);
-  });
-
-  // Update context index
-  await updateContextIndex({
-    userId: data.userId,
-    channelId: data.channelId,
-    threadId: conversationData.threadId
-  });
-
-  return {
-    timestamp: dbEntry.timestamp,
-    messageId: dbEntry.message_id,
-    threadId: dbEntry.thread_id,
-    channelId: dbEntry.channel_id,
-    channelName: dbEntry.channel_name,
-    userId: dbEntry.user_id,
-    userName: dbEntry.user_name,
-    userRole: dbEntry.user_role,
-    message: dbEntry.message,
-    messageType: dbEntry.message_type,
-    intent: dbEntry.intent,
-    aiDecision: dbEntry.ai_decision,
-    botResponse: dbEntry.bot_response,
-    actionsTaken: dbEntry.actions_taken,
-    timeOfDay: dbEntry.time_of_day,
-    dayOfWeek: dbEntry.day_of_week,
-    isFirstMessageOfDay: dbEntry.is_first_message_of_day,
-    sentiment: dbEntry.sentiment,
-    urgency: dbEntry.urgency,
-    tags: dbEntry.tags
-  };
 }
 
 /**
@@ -158,50 +176,88 @@ async function getThreadHistory(threadId) {
 /**
  * Build rich context for AI decision making
  * Now includes semantic search for truly intelligent context
+ * Falls back to file-based if database not set up
  */
 async function buildContext(params) {
-  const { userId, channelId, threadId, includeHistory = true } = params;
+  try {
+    const { userId, channelId, threadId, includeHistory = true } = params;
 
-  const context = {
-    timestamp: new Date().toISOString(),
-    userId,
-    channelId,
-    threadId,
-    history: {}
-  };
+    const context = {
+      timestamp: new Date().toISOString(),
+      userId,
+      channelId,
+      threadId,
+      history: {}
+    };
 
-  if (includeHistory) {
-    // Get user's recent conversations from PostgreSQL
-    const userConversations = await getUserConversationHistory(userId, 10);
-    context.history.userConversations = userConversations;
+    if (includeHistory) {
+      console.log('🔍 Loading conversation context from database...');
 
-    // Get channel context from PostgreSQL
-    const channelContext = await getChannelConversationHistory(channelId, 20);
-    context.history.channelContext = channelContext;
+      // Get user's recent conversations from PostgreSQL
+      try {
+        const userConversations = await getUserConversationHistory(userId, 10);
+        context.history.userConversations = userConversations;
+        console.log(`✅ Loaded ${userConversations.length} user conversations`);
+      } catch (error) {
+        console.log('⚠️  Using fallback for user conversations');
+        context.history.userConversations = await fallbackMemory.getUserConversationHistory(userId, 10);
+      }
 
-    // Get thread context if applicable
-    if (threadId) {
-      const threadContext = await getThreadHistory(threadId);
-      context.history.threadContext = threadContext;
+      // Get channel context from PostgreSQL
+      try {
+        const channelContext = await getChannelConversationHistory(channelId, 20);
+        context.history.channelContext = channelContext;
+        console.log(`✅ Loaded ${channelContext.length} channel messages`);
+      } catch (error) {
+        console.log('⚠️  Using fallback for channel context');
+        context.history.channelContext = await fallbackMemory.getChannelConversationHistory(channelId, 20);
+      }
+
+      // Get thread context if applicable
+      if (threadId) {
+        try {
+          const threadContext = await getThreadHistory(threadId);
+          context.history.threadContext = threadContext;
+          console.log(`✅ Loaded ${threadContext.length} thread messages`);
+        } catch (error) {
+          console.log('⚠️  Using fallback for thread context');
+          context.history.threadContext = await fallbackMemory.getThreadHistory(threadId);
+        }
+      }
+
+      // Analyze patterns
+      context.patterns = analyzePatterns(context.history.userConversations);
+
+      // NEW: Get semantic context from Qdrant (optional)
+      // This finds semantically similar past conversations for true context awareness
+      if (params.currentMessage) {
+        try {
+          const semanticContext = await qdrant.getSemanticContext(
+            params.currentMessage,
+            userId,
+            channelId,
+            5
+          );
+          context.semanticContext = semanticContext;
+          if (semanticContext.relevantPastInteractions) {
+            console.log(`✅ Found ${semanticContext.userContext.length} similar past conversations`);
+          }
+        } catch (error) {
+          console.log('ℹ️  Semantic search not available (Qdrant not configured)');
+          context.semanticContext = {
+            userContext: [],
+            channelContext: [],
+            relevantPastInteractions: false
+          };
+        }
+      }
     }
 
-    // Analyze patterns
-    context.patterns = analyzePatterns(userConversations);
-
-    // NEW: Get semantic context from Qdrant
-    // This finds semantically similar past conversations for true context awareness
-    if (params.currentMessage) {
-      const semanticContext = await qdrant.getSemanticContext(
-        params.currentMessage,
-        userId,
-        channelId,
-        5
-      );
-      context.semanticContext = semanticContext;
-    }
+    return context;
+  } catch (error) {
+    console.error('⚠️  Database not available, using file-based fallback for context');
+    return fallbackMemory.buildContext(params);
   }
-
-  return context;
 }
 
 /**

@@ -113,8 +113,15 @@ app.event('app_mention', async ({ event, say, client }) => {
     console.log('\n🔔 Bot mentioned:', {
       user: event.user,
       text: event.text,
-      channel: event.channel
+      channel: event.channel,
+      thread_ts: event.thread_ts || 'no thread',
+      is_thread_mention: !!event.thread_ts
     });
+
+    // If this is a thread mention, log it
+    if (event.thread_ts) {
+      console.log('🧵 Mentioned in thread, will load thread context and reply there');
+    }
 
     // Clean @mention from text
     const cleanText = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
@@ -211,8 +218,15 @@ app.message(async ({ message, say, client }) => {
       user: message.user,
       text: (message.text || '').substring(0, 50) + '...',
       channel: message.channel,
-      channel_type: message.channel_type
+      channel_type: message.channel_type,
+      thread_ts: message.thread_ts || 'no thread',
+      is_thread_reply: !!message.thread_ts
     });
+
+    // IMPORTANT: Threads are also processed - thread_ts indicates it's a reply
+    if (message.thread_ts) {
+      console.log('🧵 This is a thread reply, loading thread context...');
+    }
 
     // Get monitored channels
     const monitoredChannels = [
@@ -308,7 +322,17 @@ async function processMessageWithAI({ message, say, client, isMention }) {
     // Execute AI's decision
     if (decision.shouldRespond && decision.response) {
       console.log('📤 Sending AI response...');
-      await say(decision.response);
+
+      // If message is in a thread, reply in the thread
+      if (message.thread_ts) {
+        console.log(`🧵 Replying in thread ${message.thread_ts}`);
+        await say({
+          text: decision.response,
+          thread_ts: message.thread_ts
+        });
+      } else {
+        await say(decision.response);
+      }
     }
 
     // Execute action if AI determined one is needed
@@ -320,6 +344,7 @@ async function processMessageWithAI({ message, say, client, isMention }) {
     // Store conversation in database
     await conversationMemory.storeConversation({
       messageId: message.ts,
+      threadId: message.thread_ts || null, // Store thread info
       channelId: message.channel,
       channelName: channelInfo.name,
       userId: message.user,
@@ -336,7 +361,8 @@ async function processMessageWithAI({ message, say, client, isMention }) {
       tags: [
         isMention ? 'mention' : 'regular',
         isAdmin ? 'admin' : 'intern',
-        decision.responseType
+        decision.responseType,
+        message.thread_ts ? 'thread_reply' : 'main_channel'
       ].filter(Boolean)
     });
 
